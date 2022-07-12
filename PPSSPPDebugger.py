@@ -110,7 +110,7 @@ def get_IPV4_from_server(ppsspp_match_url):  # is not noexcept
     raise RuntimeError("Error! Server did not return a valid IPv4 address")
 
 
-def make_event_request_string(**kwargs):
+def make_request_string(**kwargs):
     return json.dumps(kwargs)
 
 
@@ -137,7 +137,7 @@ class PPSSPP_Debugger:
         self.connection_URI = f"ws://{listing['ip']}:{listing['p']}/debugger"
 
     async def memory_base(self):  # finished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
@@ -146,422 +146,464 @@ class PPSSPP_Debugger:
             return response["addressHex"]
 
     async def memory_disasm(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def cpu_searchDisasm(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def cpu_assemble(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def cpu_stepping(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def cpu_resume(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def cpu_status(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="cpu.status")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
+            return response
+            # if error, raise exception
 
-    async def cpu_getAllRegs(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+    async def cpu_getAllRegs(self, thread=""):  # unfinished
+        if thread == "":
+            request = make_request_string(event="cpu.getAllRegs")
+        else:
+            request = make_request_string(event="cpu.getAllRegs", thread=thread)
 
-    async def cpu_getReg(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
+            return response
 
-    async def cpu_setReg(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+    async def cpu_getReg(self, name, thread="", category="", register=""):  # unfinished
+        if thread == "":
+            if name == "":
+                request = make_request_string(event="cpu.getReg", category=category, register=register)
+            else:
+                request = make_request_string(event="cpu.getReg", name=name)
+        else:
+            if name == "":
+                request = make_request_string(event="cpu.getReg", thread=thread, category=category, register=register)
+            else:
+                request = make_request_string(event="cpu.getReg", thread=thread, name=name)
+
+        # But how do we implement a call by category and register index?
+        # Maybe we should add an optional pair of parameters for this method and
+        # prompt users to use an empty string as name when they use the second way to call it?
+
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
+            # if error occurs, raise exception
+            return response
+
+    async def cpu_setReg(self, name, value, thread="", category="", register=""):  # unfinished
+        if thread == "":
+            if name == "":
+                request = make_request_string(event="cpu.setReg", category=category,
+                                              register=register, value=value)
+            else:
+                request = make_request_string(event="cpu.setReg", name=name, value=value)
+        else:
+            if name == "":
+                request = make_request_string(event="cpu.setReg", thread=thread, category=category,
+                                              register=register, value=value)
+            else:
+                request = make_request_string(event="cpu.setReg", thread=thread, name=name, value=value)
+
+        async with websockets.connect(self.connection_URI) as ws:
+            await ws.send(request)
+            response = json.loads(await ws.recv())
+            # if error, raise exception
 
     async def cpu_evaluate(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
-    async def cpu_breakpoint_add(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+    async def cpu_breakpoint_add(self, address, enabled=True, log=False, condition="", logFormat=""):  # unfinished
+        request = make_request_string(event="cpu.breakpoint.add", address=address, enabled=enabled,
+                                      log=log, condition=condition, logFormat=logFormat)
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
+            # if error, raise exception
 
-    async def cpu_breakpoint_update(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+    async def cpu_breakpoint_update(self, address, enabled=True, log=False, condition="", logFormat=""):  # unfinished
+        request = make_request_string(event="cpu.breakpoint.update", address=address, enabled=enabled,
+                                      log=log, condition=condition, logFormat=logFormat)
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
+            # if error, raise exception
 
-    async def cpu_breakpoint_remove(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+    async def cpu_breakpoint_remove(self, address):  # unfinished
+        request = make_request_string(event="cpu.breakpoint.remove", address=address)
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
+            # if error, raise exception
 
     async def cpu_breakpoint_list(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="cpu.breakpoint.list")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
+            return response
+            # if error, raise exception
 
     async def memory_breakpoint_add(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def memory_breakpoint_update(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def memory_breakpoint_remove(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def memory_breakpoint_list(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def gpu_buffer_screenshot(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def gpu_buffer_renderColor(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def gpu_buffer_renderDepth(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def gpu_buffer_renderStencil(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def gpu_buffer_texture(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def gpu_buffer_clut(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def gpu_record_dump(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def gpu_stats_get(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def gpu_stats_feed(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def game_reset(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def game_status(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def version(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def hle_thread_list(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def hle_thread_wake(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def hle_thread_stop(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def hle_func_list(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def hle_func_add(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def hle_func_remove(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def hle_func_rename(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def hle_module_list(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def hle_backtrace(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def input_analog(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def input_buttons_send(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def input_buttons_press(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def input_analog_send(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def log(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def memory_mapping(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def memory_info_config(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def memory_info_set(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def memory_info_list(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def memory_info_search(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def memory_read_u8(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def memory_read_u16(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def memory_read_u32(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def memory_read(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def memory_readString(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def memory_write_u8(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def memory_write_u16(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def memory_write_u32(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def memory_write(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def replay_begin(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def replay_abort(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def replay_flush(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def replay_execute(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def replay_status(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def replay_time_get(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def replay_time_set(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def cpu_stepInto(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def cpu_stepOver(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def cpu_stepOut(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def cpu_runUntil(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
     async def cpu_nextHLE(self):  # unfinished
-        request = make_event_request_string(event="memory.base")
+        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
-    
