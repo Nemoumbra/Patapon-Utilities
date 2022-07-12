@@ -13,6 +13,8 @@ import json
 from datetime import datetime
 import ipaddress
 
+import debugger
+
 
 def get_IPV4_from_server(ppsspp_match_api):
     r = requests.get(ppsspp_match_api)
@@ -77,6 +79,29 @@ def pac_funcs_from_raw(raw):
     return pac_functions
 
 
+test = debugger.PPSSPP_Debugger()
+try:
+    test.initialize_URI()
+except Exception as e:
+    print("initialize_URI exception")
+    print(e)
+
+try:
+    # ret = asyncio.run(test.cpu_getReg(name="v1"))
+    # ret = asyncio.run(test.cpu_getAllRegs())
+    # asyncio.run(test.cpu_breakpoint_add(address=0x8913aa0, enabled=False))
+    # asyncio.run(test.cpu_breakpoint_update(address=0x8913aa0, enabled=True))
+    # ret = asyncio.run(test.cpu_status())
+    # asyncio.run(test.cpu_setReg("v1", 2))
+    ret = asyncio.run(test.cpu_breakpoint_list())
+except Exception as e:
+    print("cpu_breakpoint_add exception")
+    print(e)
+
+test_debugger = debugger.PPSSPP_Debugger()
+test_debugger.initialize_Pymem(debugger.PPSSPP_version._32_bit)
+test_debugger.initialize_URI()
+
 process = "PPSSPPWindows.exe"
 # open the process
 try:
@@ -93,14 +118,16 @@ PPSSPP_MATCH_API = "http://report.ppsspp.org/match/list"
 listing = get_IPV4_from_server(PPSSPP_MATCH_API)
 
 
-async def get_base_address_hex():
-    # print("get_address_hex called")
-    connection_uri = f"ws://{listing['ip']}:{listing['p']}/debugger"
-    print(connection_uri)
-    async with websockets.connect(connection_uri) as websocket:
-        await websocket.send(json.dumps({"event": "memory.base"}))
-        r = json.loads(await websocket.recv())
-        return r["addressHex"]
+# async def get_base_address_hex():
+#     pass
+#     print("get_address_hex called")
+#     connection_uri = f"ws://{listing['ip']}:{listing['p']}/debugger"
+#     print(connection_uri)
+#     async with websockets.connect(connection_uri) as websocket:
+#         await websocket.send(json.dumps({"event": "memory.base"}))
+#         r = json.loads(await websocket.recv())
+#         return r["addressHex"]
+#     # return test_debugger.memory_base()
 
 
 async def pac_ptr_lookup(pac_ptr_id):
@@ -178,8 +205,8 @@ async def pac_ptr_lookup(pac_ptr_id):
                     # print("pac_ptr incorrect. resume cpu and start over")
                     await websocket.send(json.dumps({"event": "cpu.resume"}))
 
-        #print("function returns")
-        #return pac_ptr
+        # print("function returns")
+        # return pac_ptr
 
 
 async def bnd_listener():
@@ -226,7 +253,7 @@ async def item_listener():
 
             # print("waiting for steppings 1")
             while r["event"] != "cpu.stepping":
-                print("prediction: " + guess_next_item())
+                # print("prediction: " + guess_next_item())
                 r = json.loads(await websocket.recv())
 
             # print("cool. now get the registry a0")
@@ -296,7 +323,7 @@ def listen_for_items():
 base = -1
 # get PPSSPP base address from a node.js script (connection to PPSSPP debugger)
 try:
-    base = int(asyncio.run(get_base_address_hex()), 16)
+    base = int(asyncio.run(test_debugger.memory_base()), 16)
 except Exception as e:
     print("Error:", e)
     exit()
@@ -309,8 +336,8 @@ flag_addr = 0x08D960A0
 ptr_global = 0x8B7D088
 ptr_application = 0x8B4C8D4
 
-item_names_path = r'p2_item_table.dat'
-pac_funcs_raw_path = r'p3_ins_table.dat'
+item_names_path = r'c:\Users\Nikolaos\D\Tools\Patapon\Tools\P3Helper_Owo\p2_item_table.dat'
+pac_funcs_raw_path = r'c:\Users\Nikolaos\D\Tools\Patapon\Tools\P3Helper_Owo\p3_ins_table.dat'
 
 # load data into data tables
 item_names = load_item_names(item_names_path)
@@ -450,112 +477,112 @@ refresh_rate = 100
 
 def switch_iteminfo():
     pass
-#     global state
-#     state = 0
-#     global page
-#     page = 0
-#
-#     lb_itemdrop.place(relx=0.0, rely=0.15)
-#     lb_misid.place(relx=0.0, rely=0.185)
-#
-#     lb_0x4.place(relx=-1.0, rely=-1.0)
-#
-#     for x in range(0, 150):
-#         lbs[x].place(relx=-1, rely=-1)
-#
-#     for x in range(0, 80):
-#         lbs[x].place(relx=-1, rely=-1)
-#
-#     for x in range(0, 20):
-#         xpos = float(x % 4) / float(4)
-#         ypos = math.floor(float(x) / float(4)) / float(24)
-#         t1_loot[x].place(relx=xpos, rely=0.34 + ypos)
-#
-#     lb_t1.place(relx=0.0, rely=0.3)
+    # global state
+    # state = 0
+    # global page
+    # page = 0
+    #
+    # itemdrop_label.place(relx=0.0, rely=0.15)
+    # mission_id_label.place(relx=0.0, rely=0.185)
+    #
+    # _0x4_label.place(relx=-1.0, rely=-1.0)
+    #
+    # for x in range(0, 150):
+    #     labels[x].place(relx=-1, rely=-1)
+    #
+    # for x in range(0, 80):
+    #     labels[x].place(relx=-1, rely=-1)
+    #
+    # for x in range(0, 20):
+    #     xpos = float(x % 4) / float(4)
+    #     ypos = math.floor(float(x) / float(4)) / float(24)
+    #     t1_loot[x].place(relx=xpos, rely=0.34 + ypos)
+    #
+    # lb_t1.place(relx=0.0, rely=0.3)
 
 
 def switch_item0x4():
     pass
-#     global state
-#     state = 1
-#     global page
-#     page = 0
-#
-#     lb_itemdrop.place(relx=-1.0, rely=-1.0)
-#     lb_misid.place(relx=-1.0, rely=-1.0)
-#
-#     lb_0x4.place(relx=0.0, rely=0.15)
-#
-#     for x in range(0, 150):
-#         lbs[x].place(relx=-1, rely=-1)
-#
-#     for x in range(0, 80):
-#         xpos = float(x % 8) / float(8)
-#         ypos = math.floor(float(x) / float(8)) / float(16)
-#         lbs[x].place(relx=xpos, rely=0.22 + ypos)
-#
-#     for x in range(0, 20):
-#         t1_loot[x].place(relx=-1, rely=-1)
-#
-#     lb_t1.place(relx=-1, rely=-1)
+    # global state
+    # state = 1
+    # global page
+    # page = 0
+    #
+    # itemdrop_label.place(relx=-1.0, rely=-1.0)
+    # mission_id_label.place(relx=-1.0, rely=-1.0)
+    #
+    # _0x4_label.place(relx=0.0, rely=0.15)
+    #
+    # for x in range(0, 150):
+    #     labels[x].place(relx=-1, rely=-1)
+    #
+    # for x in range(0, 80):
+    #     xpos = float(x % 8) / float(8)
+    #     ypos = math.floor(float(x) / float(8)) / float(16)
+    #     labels[x].place(relx=xpos, rely=0.22 + ypos)
+    #
+    # for x in range(0, 20):
+    #     t1_loot[x].place(relx=-1, rely=-1)
+    #
+    # lb_t1.place(relx=-1, rely=-1)
 
 
 def switch_item0x8():
     pass
-#     switch_item0x4()  # its the same thing
-#
-#     global state
-#     state = 2
-#     global page
-#     page = 0
+    #     switch_item0x4()  # it's the same thing
+    #
+    #     global state
+    #     state = 2
+    #     global page
+    #     page = 0
 
 
 def switch_item0x20():
     pass
-#     switch_item0x4()  # its the same thing
-#
-#     global state
-#     state = 4
-#     global page
-#     page = 0
+    #     switch_item0x4()  # it's the same thing
+    #
+    #     global state
+    #     state = 4
+    #     global page
+    #     page = 0
 
 
 def switch_item0x40():
     pass
-#     switch_item0x4()  # its the same thing
-#
-#     global state
-#     state = 5
-#     global page
-#     page = 0
+    #     switch_item0x4()  # it's the same thing
+    #
+    #     global state
+    #     state = 5
+    #     global page
+    #     page = 0
 
 
 def switch_flags():
     pass
-#     switch_item0x4()
-#
-#     global state
-#     state = 3
-#     global page
-#     page = 0
-#
-#     for x in range(0, 150):
-#         xpos = float(x % 10) / float(10)
-#         ypos = math.floor(float(x) / float(10)) / float(24)
-#         lbs[x].place(relx=xpos, rely=0.22 + ypos)
+    #     switch_item0x4()
+    #
+    #     global state
+    #     state = 3
+    #     global page
+    #     page = 0
+    #
+    #     for x in range(0, 150):
+    #         xpos = float(x % 10) / float(10)
+    #         ypos = math.floor(float(x) / float(10)) / float(24)
+    #         labels[x].place(relx=xpos, rely=0.22 + ypos)
 
 
-def btn_toint():
+def btn_to_int():
     global display
     display = 0
 
 
-def btn_tohex():
+def btn_to_hex():
     global display
     display = 1
 
 
-def btn_tofloat():
+def btn_to_float():
     global display
     display = 2
 
@@ -654,87 +681,98 @@ async def pac_get_instruction():
         #print("function returns")
         #return 0
 
-global lb_itemdrop
-global lb_refresh
-global lb_misid
-global lb_0x4
-global lbs
+global itemdrop_label
+global refresh_label
+global mission_id_label
+global _0x4_label
+global labels
+
 
 def prepare_window():
-    btn_1 = tkinter.Button(root, text="level info", command=switch_iteminfo)
-    btn_2 = tkinter.Button(root, text="0x4", command=switch_item0x4)
-    btn_3 = tkinter.Button(root, text="0x8", command=switch_item0x8)
-    btn_4 = tkinter.Button(root, text="flags", command=switch_flags)
-    btn_5 = tkinter.Button(root, text="int", command=btn_toint)
-    btn_6 = tkinter.Button(root, text="hex", command=btn_tohex)
-    btn_7 = tkinter.Button(root, text="load addresses", command=test_bp)
-    btn_12 = tkinter.Button(root, text="pac logger", command=pac_logger_bp)
-    btn_11 = tkinter.Button(root, text="item listener", command=listen_for_items)
-    btn_8 = tkinter.Button(root, text="0x20", command=switch_item0x20)
-    btn_9 = tkinter.Button(root, text="0x40", command=switch_item0x40)
-    btn_10 = tkinter.Button(root, text="float", command=btn_tofloat)
-    btn_rplus = tkinter.Button(root, text="+", command=btn_rr_increase)
-    btn_rminus = tkinter.Button(root, text="-", command=btn_rr_decrease)
-    btn_nextpage = tkinter.Button(root, text=">>>", command=btn_next)
-    btn_prevpage = tkinter.Button(root, text="<<<", command=btn_prev)
+    level_info_button = tkinter.Button(root, text="level info", command=switch_iteminfo)
 
-    btn_1.place(relx=0.01, rely=0.02)
-    btn_2.place(relx=0.075, rely=0.02)
-    btn_3.place(relx=0.10, rely=0.02)
-    btn_4.place(relx=0.185, rely=0.02)
-    btn_5.place(relx=0.905, rely=0.02)
-    btn_6.place(relx=0.93, rely=0.02)
-    btn_7.place(relx=0.80, rely=0.02)
-    btn_11.place(relx=0.80, rely=0.09)
-    btn_12.place(relx=0.80, rely=0.16)
-    btn_8.place(relx=0.125, rely=0.02)
-    btn_9.place(relx=0.155, rely=0.02)
-    btn_10.place(relx=0.96, rely=0.02)
-    btn_rplus.place(relx=0.33, rely=0.02)
-    btn_rminus.place(relx=0.35, rely=0.02)
-    btn_nextpage.place(relx=0.70, rely=0.9)
-    btn_prevpage.place(relx=0.30, rely=0.9)
+    _0x4_button = tkinter.Button(root, text="0x4", command=switch_item0x4)
+    _0x8_button = tkinter.Button(root, text="0x8", command=switch_item0x8)
+    _0x20_button = tkinter.Button(root, text="0x20", command=switch_item0x20)
+    _0x40_button = tkinter.Button(root, text="0x40", command=switch_item0x40)
+    flags_button = tkinter.Button(root, text="flags", command=switch_flags)
 
-    global lb_itemdrop
-    lb_itemdrop = tkinter.Label(text="Latest item drop:")
-    lb_itemdrop.place(relx=0.0, rely=0.15)
+    int_button = tkinter.Button(root, text="int", command=btn_to_int)
+    hex_button = tkinter.Button(root, text="hex", command=btn_to_hex)
+    float_button = tkinter.Button(root, text="float", command=btn_to_float)
 
-    global lb_misid
-    lb_misid = tkinter.Label(text="Mission ID:")
-    lb_misid.place(relx=0.0, rely=0.185)
+    load_addresses_button = tkinter.Button(root, text="load addresses", command=test_bp)
+    item_listener_button = tkinter.Button(root, text="item listener", command=listen_for_items)
+    pac_logger_button = tkinter.Button(root, text="pac logger", command=pac_logger_bp)
 
-    global lb_0x4
-    lb_0x4 = tkinter.Label(text="0x4 registers:\n")
+    r_plus_button = tkinter.Button(root, text="+", command=btn_rr_increase)
+    r_minus_button = tkinter.Button(root, text="-", command=btn_rr_decrease)
 
-    global lb_refresh
-    lb_refresh = tkinter.Label(text="Refresh rate: 100ms")
-    lb_refresh.place(relx=0.23, rely=0.024)
+    next_page_button = tkinter.Button(root, text=">>>", command=btn_next)
+    previous_page_button = tkinter.Button(root, text="<<<", command=btn_prev)
 
-    global lbs
-    lbs = []
+    level_info_button.place(relx=0.01, rely=0.02)
+
+    _0x4_button.place(relx=0.075, rely=0.02)
+    _0x8_button.place(relx=0.10, rely=0.02)
+    _0x20_button.place(relx=0.125, rely=0.02)
+    _0x40_button.place(relx=0.155, rely=0.02)
+    flags_button.place(relx=0.185, rely=0.02)
+
+    int_button.place(relx=0.905, rely=0.02)
+    hex_button.place(relx=0.93, rely=0.02)
+    float_button.place(relx=0.96, rely=0.02)
+
+    load_addresses_button.place(relx=0.80, rely=0.02)
+    item_listener_button.place(relx=0.80, rely=0.09)
+    pac_logger_button.place(relx=0.80, rely=0.16)
+
+    r_plus_button.place(relx=0.33, rely=0.02)
+    r_minus_button.place(relx=0.35, rely=0.02)
+
+    next_page_button.place(relx=0.70, rely=0.9)
+    previous_page_button.place(relx=0.30, rely=0.9)
+
+    global itemdrop_label
+    itemdrop_label = tkinter.Label(text="Latest item drop:")
+    itemdrop_label.place(relx=0.0, rely=0.15)
+
+    global mission_id_label
+    mission_id_label = tkinter.Label(text="Mission ID:")
+    mission_id_label.place(relx=0.0, rely=0.185)
+
+    global _0x4_label
+    _0x4_label = tkinter.Label(text="0x4 registers:\n")
+
+    global refresh_label
+    refresh_label = tkinter.Label(text="Refresh rate: 100ms")
+    refresh_label.place(relx=0.23, rely=0.024)
+
+    global labels
+    labels = []
     t1_loot = []
 
     for x in range(0, 150):
         # print(x)
-        lb = tkinter.Label(text=str(hex(x)) + ":")
-        # lb.place(relx = float(1.0)/float(8 - x%8 + 1), rely = math.floor(float(x)/float(8)))
+        label = tkinter.Label(text=str(hex(x)) + ":")
+        # label.place(relx = float(1.0)/float(8 - x%8 + 1), rely = math.floor(float(x)/float(8)))
         # print(float(1.0)/float(x%8 + 1))
         # print(math.floor(float(x)/float(8)))
-        lbs.append(lb)
+        labels.append(label)
 
 
 # btn_1 = tkinter.Button(root, text="level info", command=switch_iteminfo)
 # btn_2 = tkinter.Button(root, text="0x4", command=switch_item0x4)
 # btn_3 = tkinter.Button(root, text="0x8", command=switch_item0x8)
 # btn_4 = tkinter.Button(root, text="flags", command=switch_flags)
-# btn_5 = tkinter.Button(root, text="int", command=btn_toint)
-# btn_6 = tkinter.Button(root, text="hex", command=btn_tohex)
+# btn_5 = tkinter.Button(root, text="int", command=btn_to_int)
+# btn_6 = tkinter.Button(root, text="hex", command=btn_to_hex)
 # btn_7 = tkinter.Button(root, text="load addresses", command=test_bp)
 # btn_12 = tkinter.Button(root, text="pac logger", command=pac_logger_bp)
 # btn_11 = tkinter.Button(root, text="item listener", command=listen_for_items)
 # btn_8 = tkinter.Button(root, text="0x20", command=switch_item0x20)
 # btn_9 = tkinter.Button(root, text="0x40", command=switch_item0x40)
-# btn_10 = tkinter.Button(root, text="float", command=btn_tofloat)
+# btn_10 = tkinter.Button(root, text="float", command=btn_to_float)
 # btn_rplus = tkinter.Button(root, text="+", command=btn_rr_increase)
 # btn_rminus = tkinter.Button(root, text="-", command=btn_rr_decrease)
 # btn_nextpage = tkinter.Button(root, text=">>>", command=btn_next)
@@ -788,69 +826,69 @@ def p2helper_loop():
     page = get_page()
     display = get_display()
     refresh_rate = get_refresh_rate()
-    lb_refresh['text'] = "Refresh rate: " + str(refresh_rate) + "ms"
+    refresh_label['text'] = "Refresh rate: " + str(refresh_rate) + "ms"
     if state == 0:
         # lb_itemdrop['text'] = "Latest item drop: "+get_item_from_id(get_pointer(0x8, 0x155))
         # lb_itemdrop['text'] = guess_next_item() + "              Abnormal " + guess_next_item_high()
-        lb_misid['text'] = "Mission ID: " + str(get_pointer(0x8, 0x154))
+        mission_id_label['text'] = "Mission ID: " + str(get_pointer(0x8, 0x154))
 
     elif state == 1:
         text = "0x4 registers:\n"
-        lb_0x4['text'] = text
+        _0x4_label['text'] = text
         for x in range(0, 80):
             if display == 0:
-                lbs[x]['text'] = str(hex(x + (page * 80))) + ": " + str(get_pointer(0x4, x + (page * 80)))
+                labels[x]['text'] = str(hex(x + (page * 80))) + ": " + str(get_pointer(0x4, x + (page * 80)))
             if display == 1:
-                lbs[x]['text'] = str(hex(x + (page * 80))) + ": " + str(hex(get_pointer(0x4, x + (page * 80))))
+                labels[x]['text'] = str(hex(x + (page * 80))) + ": " + str(hex(get_pointer(0x4, x + (page * 80))))
             if display == 2:
                 q = get_pointer(0x4, x + (page * 80))
                 b8 = struct.pack('i', q)
                 dec, = struct.unpack('f', b8)
-                lbs[x]['text'] = str(hex(x + (page * 80))) + ": " + str(dec)
+                labels[x]['text'] = str(hex(x + (page * 80))) + ": " + str(dec)
     elif state == 2:
         text = "0x8 registers:\n"
-        lb_0x4['text'] = text
+        _0x4_label['text'] = text
         for x in range(0, 80):
             if display == 0:
-                lbs[x]['text'] = str(hex(x + (page * 80))) + ": " + str(get_pointer(0x8, x + (page * 80)))
+                labels[x]['text'] = str(hex(x + (page * 80))) + ": " + str(get_pointer(0x8, x + (page * 80)))
             if display == 1:
-                lbs[x]['text'] = str(hex(x + (page * 80))) + ": " + str(hex(get_pointer(0x8, x + (page * 80))))
+                labels[x]['text'] = str(hex(x + (page * 80))) + ": " + str(hex(get_pointer(0x8, x + (page * 80))))
             if display == 2:
                 q = get_pointer(0x8, x + (page * 80))
                 b8 = struct.pack('i', q)
                 dec, = struct.unpack('f', b8)
-                lbs[x]['text'] = str(hex(x + (page * 80))) + ": " + str(dec)
+                labels[x]['text'] = str(hex(x + (page * 80))) + ": " + str(dec)
     elif state == 3:
         text = "flags (true/false)\n"
-        lb_0x4['text'] = text
+        _0x4_label['text'] = text
         for x in range(0, 150):
-            lbs[x]['text'] = str(hex(x + (page * 150))) + ": " + str(get_flag(x + (page * 150)))
+            labels[x]['text'] = str(hex(x + (page * 150))) + ": " + str(get_flag(x + (page * 150)))
     elif state == 4:
         text = "0x20 registers:\n"
-        lb_0x4['text'] = text
+        _0x4_label['text'] = text
         for x in range(0, 80):
             if display == 0:
-                lbs[x]['text'] = str(hex(x + (page * 80))) + ": " + str(get_pointer(0x20, x + (page * 80)))
+                labels[x]['text'] = str(hex(x + (page * 80))) + ": " + str(get_pointer(0x20, x + (page * 80)))
             if display == 1:
-                lbs[x]['text'] = str(hex(x + (page * 80))) + ": " + str(hex(get_pointer(0x20, x + (page * 80))))
+                labels[x]['text'] = str(hex(x + (page * 80))) + ": " + str(hex(get_pointer(0x20, x + (page * 80))))
             if display == 2:
                 q = get_pointer(0x20, x + (page * 80))
                 b8 = struct.pack('i', q)
                 dec, = struct.unpack('f', b8)
-                lbs[x]['text'] = str(hex(x + (page * 80))) + ": " + str(dec)
+                labels[x]['text'] = str(hex(x + (page * 80))) + ": " + str(dec)
     elif state == 5:
         text = "0x40 registers:\n"
-        lb_0x4['text'] = text
+        _0x4_label['text'] = text
         for x in range(0, 80):
             if display == 0:
-                lbs[x]['text'] = str(hex(x + (page * 80))) + ": " + str(get_pointer(0x40, x + (page * 80)))
+                labels[x]['text'] = str(hex(x + (page * 80))) + ": " + str(get_pointer(0x40, x + (page * 80)))
             if display == 1:
-                lbs[x]['text'] = str(hex(x + (page * 80))) + ": " + str(hex(get_pointer(0x40, x + (page * 80))))
+                labels[x]['text'] = str(hex(x + (page * 80))) + ": " + str(hex(get_pointer(0x40, x + (page * 80))))
             if display == 2:
                 q = get_pointer(0x40, x + (page * 80))
                 b8 = struct.pack('i', q)
                 dec, = struct.unpack('f', b8)
-                lbs[x]['text'] = str(hex(x + (page * 80))) + ": " + str(dec)
+                labels[x]['text'] = str(hex(x + (page * 80))) + ": " + str(dec)
 
     root.after(refresh_rate, p2helper_loop)
 
