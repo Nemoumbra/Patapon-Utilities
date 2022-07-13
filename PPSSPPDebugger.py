@@ -136,7 +136,7 @@ class PPSSPP_Debugger:
         listing = get_IPV4_from_server(const_PPSSPP_match_list_url)
         self.connection_URI = f"ws://{listing['ip']}:{listing['p']}/debugger"
 
-    async def memory_base(self):  # finished
+    async def memory_base(self):  # unfinished
         request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
@@ -272,29 +272,39 @@ class PPSSPP_Debugger:
             return response
             # if error, raise exception
 
-    async def memory_breakpoint_add(self):  # unfinished
-        request = make_request_string(event="memory.base")
+    async def memory_breakpoint_add(self, address, size, enabled=True, log=False, read=True,
+                                    write=True, change=False, logFormat=""):  # unfinished
+        # if either of read, write or change parameters is present, others must also be included
+        request = make_request_string(event="memory.breakpoint.add", address=address, size=size, enabled=enabled,
+                                      log=log, read=read, write=write, change=change, logFormat=logFormat)
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
+            # if error, raise exception
 
-    async def memory_breakpoint_update(self):  # unfinished
-        request = make_request_string(event="memory.base")
+    async def memory_breakpoint_update(self, address, size, enabled=True, log=False, read=True,
+                                    write=True, change=False, logFormat=""):  # unfinished
+        request = make_request_string(event="memory.breakpoint.update", address=address, size=size, enabled=enabled,
+                                      log=log, read=read, write=write, change=change, logFormat=logFormat)
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
+            # if error, raise exception
 
-    async def memory_breakpoint_remove(self):  # unfinished
-        request = make_request_string(event="memory.base")
+    async def memory_breakpoint_remove(self, address, size):  # unfinished
+        request = make_request_string(event="memory.breakpoint.remove", address=address, size=size)
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
+            # if error, raise exception
 
     async def memory_breakpoint_list(self):  # unfinished
-        request = make_request_string(event="memory.base")
+        request = make_request_string(event="memory.breakpoint.list")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
+            return response
+            # if error, raise exception
 
     async def gpu_buffer_screenshot(self):  # unfinished
         request = make_request_string(event="memory.base")
