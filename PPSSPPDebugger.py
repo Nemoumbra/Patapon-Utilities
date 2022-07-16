@@ -145,23 +145,55 @@ class PPSSPP_Debugger:
                 raise RuntimeError()
             return response["addressHex"]
 
-    async def memory_disasm(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+    async def memory_disasm(self, address, count, end, thread="", displaySymbols=True):  # unfinished
+        # end is the address after the last one that needs to be disassembled
+        # I have no idea how displaySymbols works
+        if thread == "":
+            if count == "":
+                request = make_request_string(event="memory.disasm", address=address, end=end,
+                                              displaySymbols=displaySymbols)
+            else:
+                request = make_request_string(event="memory.disasm", address=address, count=count,
+                                              displaySymbols=displaySymbols)
+                # Test:
+                # request = make_request_string(event="memory.disasm", address=address, count=count)
+        else:
+            if count == "":
+                request = make_request_string(event="memory.disasm", thread=thread, address=address, end=end,
+                                              displaySymbols=displaySymbols)
+            else:
+                request = make_request_string(event="memory.disasm", thread=thread, address=address, count=count,
+                                              displaySymbols=displaySymbols)
 
-    async def cpu_searchDisasm(self):  # unfinished
-        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
+            return response
+            # if error, raise exception
 
-    async def cpu_assemble(self):  # unfinished
-        request = make_request_string(event="memory.base")
+    async def cpu_searchDisasm(self, address, match, thread="", end="", displaySymbols=True):  # unfinished
+        # for some reason PPSSPP does not recognise this event
+        if thread == "":
+            request = make_request_string(event="cpu.searchDisasm", address=address, end=end, match=match,
+                                          displaySymbols=displaySymbols)
+        else:
+            request = make_request_string(event="cpu.searchDisasm", thread=thread, address=address, end=end,
+                                          match=match, displaySymbols=displaySymbols)
+
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
+            return response
+            # if error, raise exception
+
+    async def cpu_assemble(self, address, code):  # unfinished
+        # doesn't work either
+        request = make_request_string(event="cpu.assemble", address=address, code=code)
+
+        async with websockets.connect(self.connection_URI) as ws:
+            await ws.send(request)
+            response = json.loads(await ws.recv())
+            # if error, raise exception
 
     async def cpu_stepping(self):  # unfinished
         request = make_request_string(event="memory.base")
@@ -235,11 +267,20 @@ class PPSSPP_Debugger:
             response = json.loads(await ws.recv())
             # if error, raise exception
 
-    async def cpu_evaluate(self):  # unfinished
-        request = make_request_string(event="memory.base")
+    async def cpu_evaluate(self, expression, thread=""):  # unfinished
+        # don't use curly brackets to access a register
+        # now [address, size] works smoothly all of a sudden!
+        # even [reg_name, size] works!
+        if thread == "":
+            request = make_request_string(event="cpu.evaluate", expression=expression)
+        else:
+            request = make_request_string(event="cpu.evaluate", thread=thread, expression=expression)
+
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
+            return response
+            # if error, raise exception
 
     async def cpu_breakpoint_add(self, address, enabled=True, log=False, condition="", logFormat=""):  # unfinished
         request = make_request_string(event="cpu.breakpoint.add", address=address, enabled=enabled,
@@ -361,22 +402,30 @@ class PPSSPP_Debugger:
             response = json.loads(await ws.recv())
 
     async def game_reset(self):  # unfinished
-        request = make_request_string(event="memory.base")
+        # game must be running
+        # doesn't work on v1.11.3, crashes v1.12.3
+        request = make_request_string(event="game.reset")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
+            # if error, raise exception
 
     async def game_status(self):  # unfinished
-        request = make_request_string(event="memory.base")
+        # "paused" = screen where you can load states
+        request = make_request_string(event="game.status")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
+            return response
+            # if error, raise exception
 
     async def version(self):  # unfinished
-        request = make_request_string(event="memory.base")
+        request = make_request_string(event="version")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
+            return response
+        # if error, raise exception
 
     async def hle_thread_list(self):  # unfinished
         request = make_request_string(event="memory.base")
