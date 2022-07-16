@@ -93,7 +93,28 @@ try:
     # asyncio.run(test.cpu_breakpoint_update(address=0x8913aa0, enabled=True))
     # ret = asyncio.run(test.cpu_status())
     # asyncio.run(test.cpu_setReg("v1", 2))
-    ret = asyncio.run(test.cpu_breakpoint_list())
+    # ret = asyncio.run(test.cpu_breakpoint_list())
+    # asyncio.run(test.memory_breakpoint_add(0x08AABD94, 1))
+    # asyncio.run(test.memory_breakpoint_update(0x08AABD94, 1, enabled=False))
+    # asyncio.run(test.memory_breakpoint_remove(0x08AABD94, 1))
+    # ret = asyncio.run(test.memory_breakpoint_list())
+    # ret = asyncio.run(test.memory_disasm(0x0884f66c, count=10, end=""))
+    # ret = asyncio.run(test.memory_disasm(0x0884f66c, count="", end=0x0884f698))
+
+    # broken:
+    # ret = asyncio.run(test.cpu_searchDisasm(0x0884f66c, "nop", end=0x0884f698))
+    # ret = asyncio.run(test.cpu_assemble(0x8913aa0, "nop"))
+
+    # ret = asyncio.run(test.cpu_evaluate("1 + v1"))
+    # ret = asyncio.run(test.cpu_evaluate("[0x08AABD94, 4]"))
+    # ret = asyncio.run(test.cpu_evaluate("[v1, 4]"))
+
+    # broken
+    # asyncio.run(test.game_reset())
+
+    # ret = asyncio.run(test.game_status())
+    ret = asyncio.run(test.version())
+    pass
 except Exception as e:
     print("cpu_breakpoint_add exception")
     print(e)
