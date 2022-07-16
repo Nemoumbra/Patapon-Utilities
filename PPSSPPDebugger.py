@@ -13,25 +13,27 @@ class PPSSPP_version(enum.Enum):
 
 
 class DebuggerRequest(enum.Enum):
-    memory_base = 0
-    memory_disasm = 1
-    cpu_searchDisasm = 2
-    cpu_assemble = 3
-    cpu_stepping = 4
-    cpu_resume = 5
-    cpu_status = 6
-    cpu_getAllRegs = 7
-    cpu_getReg = 8
-    cpu_setReg = 9
-    cpu_evaluate = 10
-    cpu_breakpoint_add = 11
-    cpu_breakpoint_update = 12
-    cpu_breakpoint_remove = 13
-    cpu_breakpoint_list = 14
-    memory_breakpoint_add = 15
-    memory_breakpoint_update = 16
-    memory_breakpoint_remove = 17
-    memory_breakpoint_list = 18
+    memory_base = 0  # needs exception support
+    memory_disasm = 1  # needs exception support
+    cpu_searchDisasm = 2  # broken
+    cpu_assemble = 3  # broken
+    cpu_stepping = 4  # blocks until the CPU has begun stepping, needs exception support
+    cpu_resume = 5  # blocks until the CPU has resumed from stepping, needs exception support
+    cpu_status = 6  # needs exception support
+    cpu_getAllRegs = 7  # needs exception support
+    cpu_getReg = 8  # needs exception support
+    cpu_setReg = 9  # needs exception support
+    cpu_evaluate = 10  # needs exception support
+    cpu_breakpoint_add = 11  # needs exception support
+    cpu_breakpoint_update = 12  # needs exception support
+    cpu_breakpoint_remove = 13  # needs exception support
+    cpu_breakpoint_list = 14  # needs exception support
+    memory_breakpoint_add = 15  # needs exception support
+    memory_breakpoint_update = 16  # needs exception support
+    memory_breakpoint_remove = 17  # needs exception support
+    memory_breakpoint_list = 18  # needs exception support
+
+    # GPU section
     gpu_buffer_screenshot = 19
     gpu_buffer_renderColor = 20
     gpu_buffer_renderDepth = 21
@@ -41,9 +43,12 @@ class DebuggerRequest(enum.Enum):
     gpu_record_dump = 25
     gpu_stats_get = 26
     gpu_stats_feed = 27
-    game_reset = 28
-    game_status = 29
-    version = 30
+
+    game_reset = 28  # broken
+    game_status = 29  # needs exception support
+    version = 30  # needs exception support
+
+    # HLE section
     hle_thread_list = 31
     hle_thread_wake = 32
     hle_thread_stop = 33
@@ -53,37 +58,43 @@ class DebuggerRequest(enum.Enum):
     hle_func_rename = 37
     hle_module_list = 38
     hle_backtrace = 39
+
+    # Input section
     input_analog = 40
     input_buttons_send = 41
     input_buttons_press = 42
     input_analog_send = 43
-    log = 44
-    memory_mapping = 45
-    memory_info_config = 46
-    memory_info_set = 47
-    memory_info_list = 48
-    memory_info_search = 49
-    memory_read_u8 = 50
-    memory_read_u16 = 51
-    memory_read_u32 = 52
-    memory_read = 53
-    memory_readString = 54
-    memory_write_u8 = 55
-    memory_write_u16 = 56
-    memory_write_u32 = 57
-    memory_write = 58
-    replay_begin = 59
-    replay_abort = 60
-    replay_flush = 61
-    replay_execute = 62
-    replay_status = 63
-    replay_time_get = 64
-    replay_time_set = 65
-    cpu_stepInto = 66
-    cpu_stepOver = 67
-    cpu_stepOut = 68
-    cpu_runUntil = 69
-    cpu_nextHLE = 70
+
+    # Memory access section
+    memory_mapping = 44
+    memory_info_config = 45
+    memory_info_set = 46
+    memory_info_list = 47
+    memory_info_search = 48
+    memory_read_u8 = 49
+    memory_read_u16 = 50
+    memory_read_u32 = 51
+    memory_read = 52
+    memory_readString = 53
+    memory_write_u8 = 54
+    memory_write_u16 = 55
+    memory_write_u32 = 56
+    memory_write = 57
+
+    # Replay section
+    replay_begin = 58
+    replay_abort = 59
+    replay_flush = 60
+    replay_execute = 61
+    replay_status = 62
+    replay_time_get = 63
+    replay_time_set = 64
+
+    cpu_stepInto = 65  # blocks until the CPU has begun stepping, needs exception support
+    cpu_stepOver = 66  # blocks until the CPU has begun stepping, needs exception support
+    cpu_stepOut = 67  # blocks until the CPU has begun stepping, needs exception support
+    cpu_runUntil = 68
+    cpu_nextHLE = 69
 
 
 const_32_bit_process_name = "PPSSPPWindows.exe"
@@ -196,16 +207,27 @@ class PPSSPP_Debugger:
             # if error, raise exception
 
     async def cpu_stepping(self):  # unfinished
-        request = make_request_string(event="memory.base")
+        # Let's block the thread until the answer is received
+        request = make_request_string(event="cpu.stepping")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
+            while response["event"] != "cpu.stepping":
+                response = json.loads(await ws.recv())
+            return response
+            # if error, raise exception
 
     async def cpu_resume(self):  # unfinished
-        request = make_request_string(event="memory.base")
+        # Let's block the thread until the answer is received
+        request = make_request_string(event="cpu.resume")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
+            while response["event"] != "cpu.resume":
+                response = json.loads(await ws.recv())
+            # pass
+            # return response
+            # if error, raise exception
 
     async def cpu_status(self):  # unfinished
         request = make_request_string(event="cpu.status")
@@ -505,12 +527,6 @@ class PPSSPP_Debugger:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
-    async def log(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
-
     async def memory_mapping(self):  # unfinished
         request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
@@ -637,23 +653,48 @@ class PPSSPP_Debugger:
             await ws.send(request)
             response = json.loads(await ws.recv())
 
-    async def cpu_stepInto(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+    async def cpu_stepInto(self, thread=""):  # unfinished
+        if thread == "":
+            request = make_request_string(event="cpu.stepInto")
+        else:
+            request = make_request_string(event="cpu.stepInto", thread=thread)
 
-    async def cpu_stepOver(self):  # unfinished
-        request = make_request_string(event="memory.base")
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
+            while response["event"] != "cpu.stepping":
+                response = json.loads(await ws.recv())
+            return response
+            # if error, raise exception
 
-    async def cpu_stepOut(self):  # unfinished
-        request = make_request_string(event="memory.base")
+    async def cpu_stepOver(self, thread=""):  # unfinished
+        # PC == jal instruction => skips the next instruction, use stepInto and stepOver to check it
+        if thread == "":
+            request = make_request_string(event="cpu.stepOver")
+        else:
+            request = make_request_string(event="cpu.stepOver", thread=thread)
+
         async with websockets.connect(self.connection_URI) as ws:
             await ws.send(request)
             response = json.loads(await ws.recv())
+            while response["event"] != "cpu.stepping":
+                response = json.loads(await ws.recv())
+            return response
+            # if error, raise exception
+
+    async def cpu_stepOut(self, thread=""):  # unfinished
+        if thread == "":
+            request = make_request_string(event="cpu.stepOut")
+        else:
+            request = make_request_string(event="cpu.stepOut", thread=thread)
+
+        async with websockets.connect(self.connection_URI) as ws:
+            await ws.send(request)
+            response = json.loads(await ws.recv())
+            while response["event"] != "cpu.stepping":
+                response = json.loads(await ws.recv())
+            return response
+            # if error, raise exception
 
     async def cpu_runUntil(self):  # unfinished
         request = make_request_string(event="memory.base")
