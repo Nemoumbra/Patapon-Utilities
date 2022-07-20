@@ -1,3 +1,4 @@
+import base64
 import enum
 from pymem import Pymem
 import asyncio
@@ -71,15 +72,15 @@ class DebuggerRequest(enum.Enum):
     memory_info_set = 46
     memory_info_list = 47
     memory_info_search = 48
-    memory_read_u8 = 49
-    memory_read_u16 = 50
-    memory_read_u32 = 51
-    memory_read = 52
-    memory_readString = 53
-    memory_write_u8 = 54
-    memory_write_u16 = 55
-    memory_write_u32 = 56
-    memory_write = 57
+    memory_read_u8 = 49  # needs exception support
+    memory_read_u16 = 50  # needs exception support
+    memory_read_u32 = 51  # needs exception support
+    memory_read = 52  # needs exception support
+    memory_readString = 53  # needs exception support
+    memory_write_u8 = 54  # needs exception support
+    memory_write_u16 = 55  # needs exception support
+    memory_write_u32 = 56  # needs exception support
+    memory_write = 57  # needs exception support
 
     # Replay section
     replay_begin = 58
@@ -132,6 +133,7 @@ class PPSSPP_Debugger:
     emulator_version = PPSSPP_bitness.bitness_32
     process = ""
     memory = None
+    PPSSPP_base_address = 0
 
     def __init__(self):
         pass
@@ -148,8 +150,15 @@ class PPSSPP_Debugger:
         listing = get_IPV4_from_server(const_PPSSPP_match_list_url)
         self.connection_URI = f"ws://{listing['ip']}:{listing['p']}/debugger"
 
-    def block_until_event(self):
-        pass
+    def initialize_debugger(self):
+        self.PPSSPP_base_address = int(asyncio.run(self.memory_base())["addressHex"], 16)
+
+    async def block_until_event(self, receive_event, error_event):
+        async with websockets.connect(self.connection_URI) as ws:
+            response = json.loads(await ws.recv())
+            while response["event"] != receive_event and response["event"] != error_event:
+                response = json.loads(await ws.recv())
+            return response
 
     async def send_request_receive_answer(self, request, receive_event, error_event):
         async with websockets.connect(self.connection_URI) as ws:
@@ -323,57 +332,39 @@ class PPSSPP_Debugger:
 
     async def gpu_buffer_screenshot(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def gpu_buffer_renderColor(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def gpu_buffer_renderDepth(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def gpu_buffer_renderStencil(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def gpu_buffer_texture(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def gpu_buffer_clut(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def gpu_record_dump(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def gpu_stats_get(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def gpu_stats_feed(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     # GPU section end
 
@@ -399,57 +390,39 @@ class PPSSPP_Debugger:
 
     async def hle_thread_list(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def hle_thread_wake(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def hle_thread_stop(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def hle_func_list(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def hle_func_add(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def hle_func_remove(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def hle_func_rename(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def hle_module_list(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def hle_backtrace(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     # HLE section end
 
@@ -457,27 +430,19 @@ class PPSSPP_Debugger:
 
     async def input_analog(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def input_buttons_send(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def input_buttons_press(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def input_analog_send(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     # Input section end
 
@@ -485,87 +450,61 @@ class PPSSPP_Debugger:
 
     async def memory_mapping(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def memory_info_config(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def memory_info_set(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def memory_info_list(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def memory_info_search(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
-    async def memory_read_u8(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+    async def memory_read_u8(self, address):  # unfinished
+        request = make_request_string(event="memory.read_u8", address=address)
+        return await self.send_request_receive_answer(request, "memory.read_u8", const_error_event)
 
-    async def memory_read_u16(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+    async def memory_read_u16(self, address):  # unfinished
+        request = make_request_string(event="memory.read_u16", address=address)
+        return await self.send_request_receive_answer(request, "memory.read_u16", const_error_event)
 
-    async def memory_read_u32(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+    async def memory_read_u32(self, address):  # unfinished
+        request = make_request_string(event="memory.read_u32", address=address)
+        return await self.send_request_receive_answer(request, "memory.read_u32", const_error_event)
 
-    async def memory_read(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+    async def memory_read(self, address, size, replacements=False):  # unfinished
+        # What should the default parameter be equal to? TO DO: check PPSSPP code!
+        # I also didn't quite understand what it does exactly...
+        request = make_request_string(event="memory.read", address=address, size=size, replacements=replacements)
+        return await self.send_request_receive_answer(request, "memory.read", const_error_event)
 
-    async def memory_readString(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+    async def memory_readString(self, address, type="utf-8"):  # unfinished
+        request = make_request_string(event="memory.readString", address=address, type=type)
+        return await self.send_request_receive_answer(request, "memory.readString", const_error_event)
 
-    async def memory_write_u8(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+    async def memory_write_u8(self, address, value):  # unfinished
+        request = make_request_string(event="memory.write_u8", address=address, value=value)
+        return await self.send_request_receive_answer(request, "memory.write_u8", const_error_event)
 
-    async def memory_write_u16(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+    async def memory_write_u16(self, address, value):  # unfinished
+        request = make_request_string(event="memory.write_u16", address=address, value=value)
+        return await self.send_request_receive_answer(request, "memory.write_u16", const_error_event)
 
-    async def memory_write_u32(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+    async def memory_write_u32(self, address, value):  # unfinished
+        request = make_request_string(event="memory.write_u32", address=address, value=value)
+        return await self.send_request_receive_answer(request, "memory.write_u32", const_error_event)
 
-    async def memory_write(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+    async def memory_write(self, address, base64):  # unfinished
+        request = make_request_string(event="memory.write", address=address, base64=base64)
+        return await self.send_request_receive_answer(request, "memory.write", const_error_event)
 
     # Memory section end
 
@@ -573,45 +512,31 @@ class PPSSPP_Debugger:
 
     async def replay_begin(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def replay_abort(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def replay_flush(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def replay_execute(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def replay_status(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def replay_time_get(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def replay_time_set(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     # Replay section end
 
@@ -643,12 +568,26 @@ class PPSSPP_Debugger:
 
     async def cpu_runUntil(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
 
     async def cpu_nextHLE(self):  # unfinished
         request = make_request_string(event="memory.base")
-        async with websockets.connect(self.connection_URI) as ws:
-            await ws.send(request)
-            response = json.loads(await ws.recv())
+        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+
+    # High-level functions
+    async def memory_write_bytes(self, address, byte_str):
+        # The order of bytes in byte_str is the same as in the memory!
+        return await self.memory_write(address, base64.b64encode(byte_str).decode("utf-8"))
+
+    def memory_read_byte(self, address):
+        # value = self.memory.read_char(self.PPSSPP_base_address + address)  # crashes
+        value = self.memory.read_bytes(self.PPSSPP_base_address + address, 1)
+        return int.from_bytes(value, "little")
+
+    def memory_read_short(self, address):
+        value = self.memory.read_short(self.PPSSPP_base_address + address)
+        return value
+
+    def memory_read_int(self, address):
+        value = self.memory.read_int(self.PPSSPP_base_address + address)
+        return value
