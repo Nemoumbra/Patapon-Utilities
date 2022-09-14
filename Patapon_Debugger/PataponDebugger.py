@@ -5,6 +5,7 @@ import FrozenKeysDict
 import copy
 import struct
 from collections import Counter
+from pathlib import Path
 
 
 # from collections import namedtuple
@@ -152,6 +153,23 @@ def read_PAC_string_argument(data: bytes, offset: int) -> Tuple[str, int]:
     return read_shift_jis_from_bytes(data, original_offset, length), length
 
 
+def is_PAC_instruction(data: bytes, offset: int) -> bool:
+    return data[offset] == 0x25 and data[offset + 2] != 0 and data[offset + 3] <= 0x23
+
+
+def is_left_out_PAC_args(data: bytes) -> bool:
+    # if len(data) % 4 != 0:
+    if len(data) % 8 != 0:
+        return False
+    # NB! So far this function returns false negative for args that only take up 4 bytes
+    potential_args = [data[4 * i: 4 * i + 4] for i in range(0, len(data) // 4, 2)]
+    for arg in potential_args:
+        val = int.from_bytes(arg, "little")
+        if val > 64 or val & (val - 1) != 0:  # val is not a power of 2
+            return False
+    return True
+
+
 class Memory_entity:
     def __init__(self):
         self.memory_location: int = 0
@@ -161,6 +179,20 @@ class Memory_entity:
     def initialize_by_raw_data(self, raw: bytes):
         self.raw_data = raw
         self.size = len(raw)
+
+
+class Padding_bytes(Memory_entity):
+    def __init__(self, word_length):
+        Memory_entity.__init__(self)
+        self.machine_word_length = word_length
+        self.zeroes_only = True
+
+    def initialize_by_raw_data(self, raw: bytes):
+        Memory_entity.initialize_by_raw_data(self, raw)
+        for byte in raw:
+            if byte != 0:
+                self.zeroes_only = False
+                return
 
 
 class Patapon_file(Memory_entity):
@@ -326,6 +358,7 @@ class PAC_instruction(Memory_entity):
         self.signature = template.signature
         self.name = template.name
         self.description = template.description
+        self.cut_off = False
 
         self.PAC_params: FrozenKeysDict = FrozenKeysDict.FrozenKeysDict()
         params_dict: Dict[PAC_instruction_param, Any] = {}
@@ -348,7 +381,8 @@ class PAC_instruction(Memory_entity):
                 #     # offset & (~3) == offset rounded down to the closest number divisible by 4
                 #     val = read_custom_int_from_bytes(raw, offset, 4 - (offset % 4), "little")
                 #     pass
-                offset += 4 - (offset % 4)
+                if offset % 4 != 0:
+                    offset += 4 - (offset % 4)
                 val = read_int_from_bytes(raw, offset, "little")
                 params_dict[param] = val
                 offset += 4
@@ -411,6 +445,10 @@ class PAC_instruction(Memory_entity):
                     val = read_int_from_bytes(raw, offset, "little")
                     undefined_param = PAC_instruction_param("0x1 value", "pointer")
                 else:
+                    if is_PAC_instruction(raw, offset - 4):
+                        self.cut_off = True
+                        offset -= 4
+                        break
                     val = read_int_from_bytes(raw, offset, "little")
                     undefined_param = PAC_instruction_param("Unknown", "pointer")
 
@@ -451,11 +489,13 @@ class PAC_instruction(Memory_entity):
                     offset += 4
                 pass
             elif param.type == "ENTITY_ID":
+                offset += 4
                 val = read_int_from_bytes(raw, offset, "little")
                 params_dict[param] = val
                 offset += 4
                 pass
             elif param.type == "EQUIP_ID":
+                offset += 4
                 val = read_int_from_bytes(raw, offset, "little")
                 params_dict[param] = val
                 offset += 4
@@ -630,6 +670,15 @@ class Unknown_PAC_instruction(Memory_entity):
         pass
 
 
+class Left_out_PAC_arguments(Memory_entity):
+    def __init__(self, raw: bytes, offset: int):
+        Memory_entity.__init__(self)
+        self.raw_data = raw[offset:]
+        self.size = len(self.raw_data)
+        self.supposed_instruction = raw
+        self.supposed_size = len(self.supposed_instruction)
+
+
 class PAC_message_table(Memory_entity):
     def __init__(self):
         Memory_entity.__init__(self)
@@ -638,7 +687,18 @@ class PAC_message_table(Memory_entity):
     def initialize_by_raw_data(self, raw: bytes):
         self.raw_data = raw
         self.size = len(raw)
-        self.msg_count = self.size / 4
+        self.msg_count = self.size // 4
+
+
+class Switch_case_table(Memory_entity):
+    def __init__(self):
+        Memory_entity.__init__(self)
+        self.number_of_branches = 0
+
+    def initialize_by_raw_data(self, raw: bytes):
+        self.raw_data = raw
+        self.size = len(raw)
+        self.number_of_branches = self.size // 4
 
 
 class PAC_file(Patapon_file):
@@ -646,17 +706,43 @@ class PAC_file(Patapon_file):
         Patapon_file.__init__(self)
         self.instructions_count: int = 0
         self.unknown_instructions_count: int = 0
-        self.raw_entities: List[Memory_entity] = []
-        self.contains_msg_table: bool = False
+        self.cut_instructions_count: int = 0
+        self.raw_entities: Dict[int, Memory_entity] = {}
+        self.padding_bytes: Dict[int, Padding_bytes] = {}
+        self.switch_case_tables: Dict[int, Switch_case_table] = {}
+        self.left_out_PAC_arguments: Dict[int, Left_out_PAC_arguments] = {}
+        # self.contains_msg_table: bool = False
         self.msg_table: PAC_message_table = PAC_message_table()
         self.instructions: FrozenKeysDict = FrozenKeysDict.FrozenKeysDict()
         self.unknown_instructions: FrozenKeysDict = FrozenKeysDict.FrozenKeysDict()  # value type == ?
         self.entities_offsets: List[int] = []
-        self.entities: Dict[int, Union[Memory_entity, Unknown_PAC_instruction, PAC_instruction]] = {}
+        self.entities: Dict[int, Union[Memory_entity, Padding_bytes, Switch_case_table, PAC_message_table,
+                                       Left_out_PAC_arguments, Unknown_PAC_instruction, PAC_instruction]] = {}
 
-    def get_entity_by_offset(self, offset: int) -> Union[Memory_entity, Unknown_PAC_instruction, PAC_instruction]:
+    def get_entity_by_offset(self, offset: int) -> Union[Memory_entity, Padding_bytes,
+                                                         Switch_case_table, PAC_message_table, Left_out_PAC_arguments,
+                                                         Unknown_PAC_instruction, PAC_instruction]:
         starting_offset = self.entities_offsets[binary_search(self.entities_offsets, offset)]
         return self.entities[starting_offset]
+
+    def dump_data_to_directory(self, dir_path: str, attempt_shift_jis_decoding=False):
+        # no checks regarding the directory
+        raw_entity: Memory_entity
+        base_path = Path(dir_path + "Untitled" if self.name == "" else dir_path + self.name)
+        base_path.mkdir(exist_ok=True, parents=True)
+        for location, raw_entity in self.raw_entities.items():
+            with (base_path / str(location)).open("wb") as file:
+                file.write(raw_entity.raw_data)
+        if attempt_shift_jis_decoding and self.raw_entities:
+            base_path = base_path / "shift_jis"
+            base_path.mkdir(exist_ok=True, parents=True)
+            for location, raw_entity in self.raw_entities.items():
+                try:
+                    with (base_path / (str(location) + ".sjis")).open("wb") as file:
+                        data = read_shift_jis_from_bytes(raw_entity.raw_data, 0, raw_entity.size)
+                        file.write(data.encode("utf-8"))
+                except Exception as e:
+                    (base_path / (str(location) + ".sjis")).unlink(missing_ok=True)
 
 
 class CPU_breakpoint:
@@ -695,6 +781,7 @@ class PataponDebugger:
 
         self.PAC_instruction_templates: Dict[int, PAC_instruction_template] = {}
         self.PAC_instructions: Dict[int, PAC_instruction] = {}
+        self.jump_table_next_to_switch = True
 
         self.magic_to_MSG_type: FrozenKeysDict = FrozenKeysDict.FrozenKeysDict()
         data: Dict[int, str] = {
@@ -738,14 +825,16 @@ class PataponDebugger:
             raise RuntimeError("PAC file raw data is empty!")
         # let's start!
         signature_to_dict: Dict[int, Dict[int, PAC_instruction]] = {}
-        unk_signature_to_dict: Dict[int, Unknown_PAC_instruction] = {}
+        unk_signature_to_dict: Dict[int, Dict[int, Unknown_PAC_instruction]] = {}
         offset = 0
         previous_offset = 0
         percent = 0x25
+        message_table_found = False
         while offset < file.size:
             previous_offset = offset
-
             # find 0x25 == %
+            # if offset == 0x213D0:
+            #     print("cmd_end")
             instruction_found = False
             while not instruction_found:
                 while offset < file.size and file.raw_data[offset] != percent:
@@ -763,11 +852,24 @@ class PataponDebugger:
                     # file ends with something like a cut instruction =>
                     # we need to make it a raw entity and break
                     raw = file.raw_data[previous_offset:]
-                    entity = Memory_entity()
-                    entity.initialize_by_raw_data(raw)
-                    file.raw_entities.append(entity)
+
+                    if not message_table_found and is_PAC_msg_table(raw):
+                        file.msg_table.initialize_by_raw_data(raw)
+                        file.entities[previous_offset] = file.msg_table
+                    elif is_left_out_PAC_args(raw) and file.entities_offsets and \
+                            isinstance(file.entities[file.entities_offsets[-1]], PAC_instruction):
+                        # if the last entity was a PAC instruction
+                        instr_offset = file.entities_offsets[-1]
+                        args = Left_out_PAC_arguments(file.raw_data[instr_offset:],
+                                                      previous_offset - instr_offset)
+                        file.left_out_PAC_arguments[previous_offset] = args
+                        file.entities[previous_offset] = args
+                    else:
+                        entity = Memory_entity()
+                        entity.initialize_by_raw_data(raw)
+                        file.raw_entities[previous_offset] = entity
+                        file.entities[previous_offset] = entity
                     file.entities_offsets.append(previous_offset)
-                    file.entities[previous_offset] = entity
                     break
                     # by breaking we leave instruction_found == False
                     pass
@@ -779,19 +881,22 @@ class PataponDebugger:
                 # This means that there is an unknown memory entity starting at previous_offset
                 # with size == skipped_bytes
                 raw = file.raw_data[previous_offset:offset]
-                # if is_PAC_msg_table(raw):
-                #     file.contains_msg_table = True
-                #     file.msg_table = PAC_message_table()
-                #     file.msg_table.initialize_by_raw_data(raw)
-                # else:
-                #     entity = Memory_entity()
-                #     entity.initialize_by_raw_data(raw)
-                #     file.raw_entities.append(entity)
-                entity = Memory_entity()
-                entity.initialize_by_raw_data(raw)
-                file.raw_entities.append(entity)
+                if not message_table_found and is_PAC_msg_table(raw):
+                    file.msg_table.initialize_by_raw_data(raw)
+                    file.entities[previous_offset] = file.msg_table
+                elif is_left_out_PAC_args(raw) and file.entities_offsets and \
+                        isinstance(file.entities[file.entities_offsets[-1]], PAC_instruction):
+                    # if the last entity was a PAC instruction
+                    instr_offset = file.entities_offsets[-1]
+                    args = Left_out_PAC_arguments(file.raw_data[instr_offset:offset], previous_offset - instr_offset)
+                    file.left_out_PAC_arguments[previous_offset] = args
+                    file.entities[previous_offset] = args
+                else:
+                    entity = Memory_entity()
+                    entity.initialize_by_raw_data(raw)
+                    file.raw_entities[previous_offset] = entity
+                    file.entities[previous_offset] = entity
                 file.entities_offsets.append(previous_offset)
-                file.entities[previous_offset] = entity
                 pass
             # maybe the file ends with raw data?
             if offset == file.size:
@@ -801,25 +906,55 @@ class PataponDebugger:
             # now read the signature
             # maybe we should make a check before trying to access 4 continuous bytes...?
             signature = read_int_from_bytes(file.raw_data, offset, "big")
-
+            # if signature == 0x25004200:
+            #     print("cmd_memset")
             file.entities_offsets.append(offset)
             if signature not in self.PAC_instruction_templates.keys():
                 # Unknown instruction
                 # The tool assumes the whole section between this and the next % is related to this instruction
+                instruction_found = False
                 next_instr_offset = offset + 4
-                while next_instr_offset < file.size and file.raw_data[next_instr_offset] != percent:
-                    next_instr_offset += 1
+                while not instruction_found:
+                    while next_instr_offset < file.size and file.raw_data[next_instr_offset] != percent:
+                        next_instr_offset += 1
+                    # maybe this is not a real instruction...?
+                    if next_instr_offset + 3 < file.size:
+                        # well, there is enough bytes, but we're not satisfied yet
+                        last_bytes = file.raw_data[next_instr_offset + 2:next_instr_offset + 4]
+                        if last_bytes[0] != 0 and last_bytes[1] <= 0x23:
+                            # fine...
+                            instruction_found = True
+                        else:
+                            next_instr_offset += 1
+                    else:
+                        # we need to make the whole file suffix a part of this unknown instruction
+                        raw = file.raw_data[offset:]
+                        unknown_instruction = Unknown_PAC_instruction(raw)
+                        if signature not in unk_signature_to_dict:
+                            unk_signature_to_dict[signature] = {}
+                        unk_signature_to_dict[signature][offset] = unknown_instruction
+                        file.entities[offset] = unknown_instruction
+                        file.unknown_instructions_count += 1
+                        break
+                        # by breaking we leave instruction_found == False
+                        pass
+                if not instruction_found:
+                    break
 
                 skipped_count = next_instr_offset - offset
                 raw = file.raw_data[offset:next_instr_offset]
                 unknown_instruction = Unknown_PAC_instruction(raw)
-                unk_signature_to_dict[signature] = unknown_instruction
+                if signature not in unk_signature_to_dict:
+                    unk_signature_to_dict[signature] = {}
+                unk_signature_to_dict[signature][offset] = unknown_instruction
                 file.entities[offset] = unknown_instruction
 
-                if next_instr_offset == file.size:
-                    # This instruction is the last thing in the file so we can break
-                    break
+                # The following code is no longer necessary
+                # if next_instr_offset == file.size:
+                #     # This instruction is the last thing in the file so we can break
+                #     break
                 offset += skipped_count  # maybe offset = next_instr_offset ?
+                file.unknown_instructions_count += 1
             else:
                 # this instruction is known to the tool
                 template = self.PAC_instruction_templates[signature]
@@ -834,11 +969,65 @@ class PataponDebugger:
                 signature_to_dict[signature][offset] = instruction
                 file.entities[offset] = instruction
                 offset += instruction.size
+                file.instructions_count += 1
+                if instruction.cut_off:
+                    file.cut_instructions_count += 1
+
+                if template.PAC_params and template.PAC_params[-1].type == "string":
+                    # alignment might be broken
+                    if offset % 4 != 0:
+                        padding = Padding_bytes(4)
+                        padding_bytes_length = 4 - (offset % 4)
+                        padding_raw = file.raw_data[offset:offset + padding_bytes_length]
+                        padding.initialize_by_raw_data(padding_raw)
+                        file.padding_bytes[offset] = padding
+                        offset += padding_bytes_length
+                        pass
+                    pass
+
+                if self.jump_table_next_to_switch and instruction.signature == 0x25002f00:
+                    previous_offset = offset
+                    instruction_found = False
+                    while not instruction_found:
+                        while offset < file.size and file.raw_data[offset] != percent:
+                            offset += 1
+                        # maybe this is a part of the table?
+                        if offset + 3 < file.size:
+                            # well, there is enough bytes, but we're not satisfied yet
+                            last_bytes = file.raw_data[offset + 2:offset + 4]
+                            if last_bytes[0] != 0 and last_bytes[1] <= 0x23:
+                                # fine...
+                                instruction_found = True
+                            else:
+                                offset += 1
+                        else:
+                            # file ends with something like a cut instruction =>
+                            # we need to make it a raw entity and break
+                            # This is quite contradictory to what we believe is happening, but why not?
+                            raw = file.raw_data[previous_offset:]
+                            entity = Memory_entity()
+                            entity.initialize_by_raw_data(raw)
+                            file.raw_entities[previous_offset] = entity
+                            file.entities_offsets.append(previous_offset)
+                            file.entities[previous_offset] = entity
+                            break
+                            # by breaking we leave instruction_found == False
+                            pass
+                    if not instruction_found:
+                        break
+                    # Else we have found the switch-case table
+                    table = Switch_case_table()
+                    table.initialize_by_raw_data(file.raw_data[previous_offset:offset])
+                    file.entities_offsets.append(previous_offset)
+                    file.entities[previous_offset] = table
+                    file.switch_case_tables[previous_offset] = table
                 pass
 
         # We need to make a map <signature, map <location, PAC_instruction>>
         # Prepare dict and initialize FrozenKeysDict with it:
         file.instructions.initialize_from_dict(signature_to_dict)
+        file.unknown_instructions.initialize_from_dict(unk_signature_to_dict)
+
         pass
 
     def dump_memory(self, address: int, size: int) -> bytes:
