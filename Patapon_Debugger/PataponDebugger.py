@@ -13,7 +13,6 @@ from pathlib import Path
 # from collections import namedtuple
 # import csv
 
-
 const_overlay_base_address = 0x8ABB180
 const_overlay_code_start = 0x08ABB200
 const_ol_azito_bin_size = 1091840
@@ -173,6 +172,7 @@ def analyze_instruction_set(file_path: str):
                 elif arg_type.startswith("uintXC_t_T"):
                     stats["uintXC_t_T"] += 1
                 elif arg_type.startswith("COUNT_"):
+                    # I don't want to implement this now
                     stats["COUNT"] += 1
                 elif arg_type.startswith("CONTINOUS_"):
                     stats["CONTINOUS"] += 1
@@ -200,7 +200,7 @@ def read_PAC_var_argument(data: bytes, offset: int, sizeof: int = 4) -> Tuple[st
 
 
 def is_PAC_instruction(data: bytes, offset: int) -> bool:
-    return data[offset] == 0x25 and data[offset + 3] <= 0x1
+    return data[offset] == 0x25 and data[offset + 3] <= 0x23
 
 
 def is_left_out_PAC_args(data: bytes) -> bool:
@@ -255,6 +255,9 @@ class Patapon_file(Memory_entity):
     def __init__(self):
         Memory_entity.__init__(self)
         self.name: str = ""
+
+    def __str__(self):
+        return "Patapon file" + (f" ({self.name})" if self.name != "" else "") + f", size={self.size} bytes"
 
 
 class MSG_file(Patapon_file):
@@ -456,20 +459,10 @@ class PAC_instruction(Memory_entity):
         # NB! Anything but uintX_t, uintX_t_T, uintXC_t_T, uint32_t_T, uint32_t_P string
         # COUNT, ENTITY_ID and EQUIP_ID should not be used for now!
 
-        # if self.signature == 621055232:
-        #     print("test")
         for index, param in enumerate(template.PAC_params):
             # wait, is "index" unused? Looks like it is...
             if param.type == "uintX_t":  # unfinished
-                # if offset % 4 == 0:
-                #     val = read_int_from_bytes(raw, offset, "little")
-                #     # make new PAC_param ?
-                #     params_dict[param] = val
-                #     offset += 4
-                # else:
-                #     # offset & (~3) == offset rounded down to the closest number divisible by 4
-                #     val = read_custom_int_from_bytes(raw, offset, 4 - (offset % 4), "little")
-                #     pass
+                # skip padding if needed
                 if offset % 4 != 0:
                     offset += 4 - (offset % 4)
                 val = read_int_from_bytes(raw, offset, "little")
@@ -481,39 +474,9 @@ class PAC_instruction(Memory_entity):
                 if offset % 4 != 0:
                     offset += 4 - (offset % 4)
 
-                arg_type = read_int_from_bytes(raw, offset, "little")
+                # arg_type = read_int_from_bytes(raw, offset, "little")
+                arg_type = raw[offset]
                 offset += 4
-                # undefined_param: PAC_instruction_param
-
-                # if arg_type == 0x40:
-                #     val = read_int_from_bytes(raw, offset, "little")
-                #     undefined_param = PAC_instruction_param("0x40 variable", param.name)
-                # elif arg_type == 0x20:
-                #     val = read_int_from_bytes(raw, offset, "little")
-                #     undefined_param = PAC_instruction_param("0x20 variable", param.name)
-                # elif arg_type == 0x10:  # float
-                #     val = read_float_from_bytes(raw, offset)
-                #     undefined_param = PAC_instruction_param("float", param.name)
-                # elif arg_type == 0x8:
-                #     val = read_int_from_bytes(raw, offset, "little")
-                #     undefined_param = PAC_instruction_param("0x8 variable", param.name)
-                # elif arg_type == 0x4:
-                #     val = read_int_from_bytes(raw, offset, "little")
-                #     undefined_param = PAC_instruction_param("0x4 variable", param.name)
-                # elif arg_type == 0x2:
-                #     val = read_int_from_bytes(raw, offset, "little")
-                #     undefined_param = PAC_instruction_param("uint32_t", param.name)
-                # elif arg_type == 0x1:
-                #     val = read_int_from_bytes(raw, offset, "little")
-                #     undefined_param = PAC_instruction_param("0x1 value", param.name)
-                # else:
-                #     # if the thing that we've just read is a valid signature
-                #     if is_PAC_instruction(raw, offset - 4):
-                #         self.cut_off = True
-                #         offset -= 4
-                #         break
-                #     val = read_int_from_bytes(raw, offset, "little")
-                #     undefined_param = PAC_instruction_param("Unknown", param.name)
 
                 values = self.argument_switch_case(raw, offset, arg_type, 4, param)
                 if values is None:
@@ -527,43 +490,12 @@ class PAC_instruction(Memory_entity):
                 offset += 4
             elif param.type.startswith("uintXC_t_T"):  # unfinished
                 sizeof = 4 - (offset % 4)
-                # if sizeof == 4:
-                #     pass
-                # else:
-                #     pass
 
-                arg_type = read_custom_int_from_bytes(raw, offset, sizeof, "little")
+                # arg_type = read_custom_int_from_bytes(raw, offset, sizeof, "little")
+                arg_type = raw[offset]
                 offset += sizeof
                 # undefined_param: PAC_instruction_param
 
-                # if arg_type == 0x40:
-                #     val = read_int_from_bytes(raw, offset, "little")
-                #     undefined_param = PAC_instruction_param("0x40 variable", param.name)
-                # elif arg_type == 0x20:
-                #     val = read_int_from_bytes(raw, offset, "little")
-                #     undefined_param = PAC_instruction_param("0x20 variable", param.name)
-                # elif arg_type == 0x10:  # float
-                #     val = read_float_from_bytes(raw, offset)
-                #     undefined_param = PAC_instruction_param("float", param.name)
-                # elif arg_type == 0x8:
-                #     val = read_int_from_bytes(raw, offset, "little")
-                #     undefined_param = PAC_instruction_param("0x8 variable", param.name)
-                # elif arg_type == 0x4:
-                #     val = read_int_from_bytes(raw, offset, "little")
-                #     undefined_param = PAC_instruction_param("0x4 variable", param.name)
-                # elif arg_type == 0x2:
-                #     val = read_int_from_bytes(raw, offset, "little")
-                #     undefined_param = PAC_instruction_param("uint32_t", param.name)
-                # elif arg_type == 0x1:
-                #     val = read_int_from_bytes(raw, offset, "little")
-                #     undefined_param = PAC_instruction_param("0x1 value", param.name)
-                # else:
-                #     if is_PAC_instruction(raw, offset - 4):
-                #         self.cut_off = True
-                #         offset -= 4
-                #         break
-                #     val = read_int_from_bytes(raw, offset, "little")
-                #     undefined_param = PAC_instruction_param("Unknown", param.name)
                 values = self.argument_switch_case(raw, offset, arg_type, 4, param)
                 if values is None:
                     raise RuntimeError("Cannot init PAC_instruction: param.type is uintXC_t_T, but values is None!")
@@ -573,38 +505,10 @@ class PAC_instruction(Memory_entity):
                 self.ordered_PAC_params.append((undefined_param, val))
                 offset += 4
             elif param.type.startswith("uint32_t_T"):
-                arg_type = read_int_from_bytes(raw, offset, "little")
+                # arg_type = read_int_from_bytes(raw, offset, "little")
+                arg_type = raw[offset]
                 offset += 4
                 # undefined_param: PAC_instruction_param
-
-                # if arg_type == 0x40:
-                #     val = read_int_from_bytes(raw, offset, "little")
-                #     undefined_param = PAC_instruction_param("0x40 variable", param.name)
-                # elif arg_type == 0x20:
-                #     val = read_int_from_bytes(raw, offset, "little")
-                #     undefined_param = PAC_instruction_param("0x20 variable", param.name)
-                # elif arg_type == 0x10:  # float
-                #     val = read_float_from_bytes(raw, offset)
-                #     undefined_param = PAC_instruction_param("float", param.name)
-                # elif arg_type == 0x8:
-                #     val = read_int_from_bytes(raw, offset, "little")
-                #     undefined_param = PAC_instruction_param("0x8 variable", param.name)
-                # elif arg_type == 0x4:
-                #     val = read_int_from_bytes(raw, offset, "little")
-                #     undefined_param = PAC_instruction_param("0x4 variable", param.name)
-                # elif arg_type == 0x2:
-                #     val = read_int_from_bytes(raw, offset, "little")
-                #     undefined_param = PAC_instruction_param("uint32_t", param.name)
-                # elif arg_type == 0x1:
-                #     val = read_int_from_bytes(raw, offset, "little")
-                #     undefined_param = PAC_instruction_param("0x1 value", param.name)
-                # else:
-                #     if is_PAC_instruction(raw, offset - 4):  # maybe turn this check into a bit mask?
-                #         self.cut_off = True
-                #         offset -= 4
-                #         break
-                #     val = read_int_from_bytes(raw, offset, "little")
-                #     undefined_param = PAC_instruction_param("Unknown", param.name)
 
                 values = self.argument_switch_case(raw, offset, arg_type, 4, param)
                 if values is None:
@@ -617,7 +521,8 @@ class PAC_instruction(Memory_entity):
                 self.ordered_PAC_params.append((undefined_param, val))  # replace with "values"?
                 offset += 4
             elif param.type.startswith("uint16_t_T"):
-                arg_type = read_custom_int_from_bytes(raw, offset, 2, "little")
+                # arg_type = read_custom_int_from_bytes(raw, offset, 2, "little")
+                arg_type = raw[offset]
                 offset += 2
                 values = self.argument_switch_case(raw, offset, arg_type, 2, param)
                 # so far in this scenario "values" can't be None, but I'll throw a check just in case
@@ -634,23 +539,34 @@ class PAC_instruction(Memory_entity):
                 params_dict[param] = val
                 offset += 4
             elif param.type == "string":
-                # val = read_string_from_bytes(raw, offset)
-                # val = read_shift_jis_from_bytes(raw, offset)
                 val, length = read_PAC_string_argument(raw, offset)
+
+                # This is a test
+                val = val.replace("\x00", "")
+                # Test part end
+
                 params_dict[param] = val
                 self.ordered_PAC_params.append((param, val))
                 offset += length
             elif param.type.startswith("COUNT_"):  # unfinished
-                # count = read_int_from_bytes(raw, offset, "little")
-                # count = read_custom_int_from_bytes(raw, offset, 1, "little")
-                count = raw[offset]  # why is this a Union[int, bytes]?
-                offset += 4
-                for i in range(count):
-                    val = read_int_from_bytes(raw, offset, "little")
-                    count_param = PAC_instruction_param(f"count_{i}", "Unknown")
+                # # count = read_int_from_bytes(raw, offset, "little")
+                # # count = read_custom_int_from_bytes(raw, offset, 1, "little")
+                # count = raw[offset]  # why is this a Union[int, bytes]?
+                # offset += 4
+                # for i in range(count):
+                #     val = read_int_from_bytes(raw, offset, "little")
+                #     count_param = PAC_instruction_param(f"count_{i}", "Unknown")
+                #     params_dict[count_param] = val
+                #     self.ordered_PAC_params.append((count_param, val))
+                #     offset += 4
+                res, new_offset = self.read_count_argument(raw, offset, param)
+                for count_param, val in res:
                     params_dict[count_param] = val
                     self.ordered_PAC_params.append((count_param, val))
-                    offset += 4
+                    offset = new_offset
+                if self.cut_off:
+                    # we've reached the new instruction
+                    break
                 pass
             elif param.type == "uint32_t" or param.type == "uint32_t_P" or param.type == "uint32_t_P_ret":
                 val = read_int_from_bytes(raw, offset, "little")
@@ -697,9 +613,20 @@ class PAC_instruction(Memory_entity):
         pass
 
     def argument_switch_case(self, raw: bytes, offset: int, arg_type: int, sizeof: int, param: PAC_instruction_param):
-        undefined_param: PAC_instruction_param
+        """
+        This is a switch-case code for parsing uint_something_T arguments like 02 00 00 00 FF FF FF FF. \n
+        None is returned <=> arg_type is broken and there is a valid PAC signature at offset - sizeof
 
-        # test1 (uint16_t_T): sizeof == 2
+            :param raw: bytes object
+            :param offset: offset
+            :param arg_type: 0x1, 0x2, 0x4, 0x10, etc.
+            :param sizeof: number of bytes this argument takes
+            :param param: info from instruction template
+            :returns: PAC_instruction_param for the dict and the arg value or None if the operation was unsuccessful
+        """
+        undefined_param: PAC_instruction_param
+        # Weird, only param.name is used here.
+
         if arg_type == 0x40:
             val = read_custom_int_from_bytes(raw, offset, sizeof, "little")
             undefined_param = PAC_instruction_param("0x40 variable", param.name)
@@ -724,7 +651,7 @@ class PAC_instruction(Memory_entity):
             val = read_custom_int_from_bytes(raw, offset, sizeof, "little")
             undefined_param = PAC_instruction_param("0x1 value", param.name)
         else:
-            # if the thing that we've just read is a valid signature
+            # Let's check if the thing that we've just read is a valid signature
             if sizeof != 2 and is_PAC_instruction(raw, offset - sizeof):  # is it ok to put sizeof here?
                 # Also maybe turn this check into a bit mask?
                 # TO DO: properly implement a check here
@@ -733,6 +660,89 @@ class PAC_instruction(Memory_entity):
             val = read_custom_int_from_bytes(raw, offset, sizeof, "little")
             undefined_param = PAC_instruction_param("Unknown", param.name)
         return undefined_param, val
+
+    def read_count_argument(self, raw: bytes, offset: int, param: PAC_instruction_param):
+        """
+        :param raw: bytes object
+        :param offset: offset
+        :param param: info from instruction template
+        :returns: a list of tuples in form (count_param, val) and the offset after the end of the count args range
+        """
+        # COUNT_uint32t_uint32tP
+        count_info, args_info = param.type.split("_")[1:]
+        res: List[Tuple[PAC_instruction_param, int]] = []
+
+        if count_info == "byte":
+            count = raw[offset]
+            offset += 4
+
+            if args_info == "uint32t":
+                for i in range(count):
+                    arg_type = raw[offset]
+                    offset += 4
+                    values = self.argument_switch_case(raw, offset, arg_type, 4, param)
+                    if values is None:
+                        offset -= 4
+                        break
+                    undefined_param, val = values
+                    count_param = PAC_instruction_param(f"count_{count_info} {undefined_param.type} {i}", param.name)
+                    res.append((count_param, val))
+                    offset += 4
+            elif args_info == "uint32tP":
+                for i in range(count):
+                    val = read_int_from_bytes(raw, offset, "little")
+                    count_param = PAC_instruction_param(f"count_{count_info}_{i}", "Unknown")
+                    res.append((count_param, val))
+                    offset += 4
+        elif count_info == "uint32t":
+            arg_type = raw[offset]
+            if arg_type != 0x2 and arg_type != 0x1:
+                raise RuntimeError(f"Cannot parse {param.type} argument at offset {offset:X}")
+            offset += 4
+            count = read_int_from_bytes(raw, offset, "little")
+            offset += 4
+
+            if args_info == "uint32t":
+                for i in range(count):
+                    arg_type = raw[offset]
+                    offset += 4
+                    values = self.argument_switch_case(raw, offset, arg_type, 4, param)
+                    if values is None:
+                        offset -= 4
+                        break
+                    undefined_param, val = values
+                    count_param = PAC_instruction_param(f"count_{count_info} {undefined_param.type} {i}", param.name)
+                    res.append((count_param, val))
+                    offset += 4
+            elif args_info == "uint32tP":
+                for i in range(count):
+                    val = read_int_from_bytes(raw, offset, "little")
+                    count_param = PAC_instruction_param(f"count_{count_info}_{i}", "Unknown")
+                    res.append((count_param, val))
+                    offset += 4
+        elif count_info == "uint32tP":
+            count = read_int_from_bytes(raw, offset, "little")
+            offset += 4
+
+            if args_info == "uint32t":
+                for i in range(count):
+                    arg_type = raw[offset]
+                    offset += 4
+                    values = self.argument_switch_case(raw, offset, arg_type, 4, param)
+                    if values is None:
+                        offset -= 4
+                        break
+                    undefined_param, val = values
+                    count_param = PAC_instruction_param(f"count_{count_info} {undefined_param.type} {i}", param.name)
+                    res.append((count_param, val))
+                    offset += 4
+            elif args_info == "uint32tP":
+                for i in range(count):
+                    val = read_int_from_bytes(raw, offset, "little")
+                    count_param = PAC_instruction_param(f"count_{count_info}_{i}", "Unknown")
+                    res.append((count_param, val))
+                    offset += 4
+        return res, offset
 
     # outdated
     def initialize_from_template(self, raw: bytes, offset: int, template: PAC_instruction_template):
@@ -840,52 +850,10 @@ class PAC_instruction(Memory_entity):
         self.initialize_by_raw_data(raw[original_offset:offset])
 
     def __str__(self):  # unfinished
-        ans = f"{hex(self.signature)}:{self.name}("
-        for pac_param, value in self.ordered_PAC_params:
-            pass
-    # def initialize(self, raw: bytes, offset: int):
-    #     original_offset = offset
-    #     offset += 4  # skip the signature
-    #     key: PAC_instruction_param
-    #     # skip_next_key = False
-    #     for key in self.PAC_params.keys():
-    #
-    #         if key.type == "uintX_t":  # unfinished
-    #             pass
-    #         elif key.type.startswith("uintX_t_T"):  # unfinished
-    #             pass
-    #         elif key.type.startswith("uint32_t_T"):
-    #             # skip_next_key = True
-    #             arg_type = read_int_from_bytes(raw, offset, "little")
-    #             offset += 4
-    #             if arg_type == 0x10:  # float
-    #                 val = read_float_from_bytes(raw, offset)
-    #             else:
-    #                 val = read_int_from_bytes(raw, offset, "little")
-    #             self.PAC_params[key] = val
-    #             offset += 4
-    #         elif key.type == "float":
-    #             val = read_float_from_bytes(raw, offset)
-    #             self.PAC_params[key] = val
-    #             offset += 4
-    #         elif key.type == "string":
-    #             val = read_string_from_bytes(raw, offset)
-    #             self.PAC_params[key] = val
-    #             length = len(val)
-    #             offset += length + 2
-    #         elif key.type.startswith("COUNT_"):  # unfinished
-    #             pass
-    #         elif key.type == "uint32_t" or key.type == "uint32_t_P" or key.type == "uint32_t_P_ret":
-    #             val = read_int_from_bytes(raw, offset, "little")
-    #             self.PAC_params[key] = val
-    #             offset += 4
-    #             pass
-    #         elif key.type.startswith("CONTINOUS_"):  # unfinished
-    #             pass
-    #         else:
-    #             pass
-    #     # now we are done, let's initialize raw data
-    #     self.initialize_by_raw_data(raw[original_offset:offset])
+        ans = f"{hex(self.signature)} ({self.name})"
+        return ans
+        # for pac_param, value in self.ordered_PAC_params:
+        #     pass
 
 
 class Unknown_PAC_instruction(Memory_entity):
@@ -896,6 +864,29 @@ class Unknown_PAC_instruction(Memory_entity):
         self.instr_index = self.signature % 65536
         self.initialize_by_raw_data(raw)
         pass
+
+
+class used_PAC_variables(NamedTuple):
+    var_0x4: Set[int]
+    var_0x8: Set[int]
+    var_0x20: Set[int]
+    var_0x40: Set[int]
+
+
+def get_used_pac_vars(instruction: PAC_instruction) -> used_PAC_variables:
+    args = instruction.ordered_PAC_params
+    used = used_PAC_variables(set(), set(), set(), set())
+    for arg in args:
+        arg_type = arg[0].type
+        if arg_type.startswith("0x4 "):
+            used.var_0x4.add(arg[1])
+        elif arg_type.startswith("0x8 "):
+            used.var_0x8.add(arg[1])
+        elif arg_type.startswith("0x20 "):
+            used.var_0x20.add(arg[1])
+        elif arg_type.startswith("0x40 "):
+            used.var_0x40.add(arg[1])
+    return used
 
 
 class Left_out_PAC_arguments(Memory_entity):
@@ -933,12 +924,22 @@ class Switch_case_table(Memory_entity):
         pass
 
 
+class RawDataBlock:
+    pass
+
+
+class ContiguousCodeBlock:
+    pass
+
+
 class PAC_file(Patapon_file):
     def __init__(self):
         Patapon_file.__init__(self)
         self.instructions_count: int = 0
         self.unknown_instructions_count: int = 0
         self.cut_instructions_count: int = 0
+
+        # Dictionary order is insertion order as of Python 3.7!
         self.cut_instructions: Dict[int, PAC_instruction] = {}
         self.raw_entities: Dict[int, Memory_entity] = {}
         self.padding_bytes: Dict[int, Padding_bytes] = {}
@@ -948,15 +949,16 @@ class PAC_file(Patapon_file):
         self.msg_tables: Dict[int, PAC_message_table] = {}
         self.instructions: FrozenKeysDict = FrozenKeysDict.FrozenKeysDict()
         self.unknown_instructions: FrozenKeysDict = FrozenKeysDict.FrozenKeysDict()  # value type == ?
+        self.ordered_instructions: Dict[int, PAC_instruction] = {}
         self.entities_offsets: List[int] = []
         self.entities: Dict[int, Union[Memory_entity, Padding_bytes, Switch_case_table, PAC_message_table,
                                        Left_out_PAC_arguments, Unknown_PAC_instruction, PAC_instruction]] = {}
 
-    def get_entity_by_offset(self, offset: int) -> Union[Memory_entity, Padding_bytes,
+    def get_entity_by_offset(self, offset: int) -> Tuple[int, Union[Memory_entity, Padding_bytes,
                                                          Switch_case_table, PAC_message_table, Left_out_PAC_arguments,
-                                                         Unknown_PAC_instruction, PAC_instruction]:
+                                                         Unknown_PAC_instruction, PAC_instruction]]:
         starting_offset = self.entities_offsets[binary_search(self.entities_offsets, offset)]
-        return self.entities[starting_offset]
+        return starting_offset, self.entities[starting_offset]
 
     def dump_data_to_directory(self, dir_path: str, attempt_shift_jis_decoding=False):
         # no checks regarding the directory
@@ -976,6 +978,11 @@ class PAC_file(Patapon_file):
                         file.write(data.encode("utf-8"))
                 except Exception as e:
                     (base_path / (str(location) + ".sjis")).unlink(missing_ok=True)
+
+    def getInstructions(self, signature: int) -> Dict[int, PAC_instruction]:
+        if signature not in self.instructions:
+            return {}
+        return self.instructions[signature]  # can we not search for it again?
 
 
 class CPU_breakpoint:
@@ -1023,6 +1030,11 @@ class MIPS_code_state:
         return f"PC = {self.PC:#x}, {self.asm_line} ({self.function})"
 
 
+class PAC_analysis_results:
+    def __init__(self):
+        pass
+
+
 class PataponDebugger:
     def __init__(self):
         self.debugger = PPSSPPDebugger.PPSSPP_Debugger()
@@ -1034,10 +1046,11 @@ class PataponDebugger:
         self.error = PPSSPPDebugger.const_error_event
 
         # this should be either removed or rethought...
-        self.PAC_name_to_signature: Dict[str, int] = {}
+        # self.PAC_name_to_signature: Dict[str, int] = {}
+        self.PAC_signature_to_name: Dict[int, str] = {}
 
         self.PAC_instruction_templates: Dict[int, PAC_instruction_template] = {}
-        self.PAC_instructions: Dict[int, PAC_instruction] = {}
+        self.PAC_instructions: Dict[int, PAC_instruction] = {}  # now unused?
         self.jump_table_next_to_switch = True
         self.inxJmp_signature: int = 0x0
         self.unknown_PAC_signatures: Set = set()
@@ -1079,6 +1092,7 @@ class PataponDebugger:
 
                 template = PAC_instruction_template(instr_info, args_info)
                 self.PAC_instruction_templates[template.signature] = template
+                self.PAC_signature_to_name[template.signature] = template.name
 
                 address = int(instr_info[-1], 16)
                 if True or address < const_overlay_base_address:
@@ -1112,7 +1126,7 @@ class PataponDebugger:
         while offset < file.size:
             previous_offset = offset
             # find 0x25 == %
-            # if offset == 0x000620D0:
+            # if offset > 0x2C0B4:
             #     print("weird part")
             instruction_found = False
             while not instruction_found:
@@ -1132,12 +1146,13 @@ class PataponDebugger:
                     # we need to make it a raw entity and break
                     raw = file.raw_data[previous_offset:]
 
-                    if not message_table_found and is_PAC_msg_table(raw):
+                    # if not message_table_found and is_PAC_msg_table(raw):
+                    if is_PAC_msg_table(raw):
                         msg_table = PAC_message_table()
                         msg_table.initialize_by_raw_data(raw)
                         file.msg_tables[previous_offset] = msg_table
                         file.entities[previous_offset] = msg_table
-                        message_table_found = True
+                        # message_table_found = True
                     elif is_left_out_PAC_args(raw) and file.entities_offsets and \
                             isinstance(file.entities[file.entities_offsets[-1]], PAC_instruction):
                         # if the last entity was a PAC instruction
@@ -1163,12 +1178,13 @@ class PataponDebugger:
                 # This means that there is an unknown memory entity starting at previous_offset
                 # with size == skipped_bytes
                 raw = file.raw_data[previous_offset:offset]
-                if not message_table_found and is_PAC_msg_table(raw):
+                # if not message_table_found and is_PAC_msg_table(raw):
+                if is_PAC_msg_table(raw):
                     msg_table = PAC_message_table()
                     msg_table.initialize_by_raw_data(raw)
                     file.msg_tables[previous_offset] = msg_table
                     file.entities[previous_offset] = msg_table
-                    message_table_found = True
+                    # message_table_found = True
                 elif is_left_out_PAC_args(raw) and file.entities_offsets and \
                         isinstance(file.entities[file.entities_offsets[-1]], PAC_instruction):
                     # if the last entity was a PAC instruction
@@ -1190,7 +1206,9 @@ class PataponDebugger:
 
             # now read the signature
             # maybe we should make a check before trying to access 4 continuous bytes...?
+
             signature = read_int_from_bytes(file.raw_data, offset, "big")
+
             # if signature == 0x25004200:
             #     print("cmd_memset")
             file.entities_offsets.append(offset)
@@ -1254,6 +1272,7 @@ class PataponDebugger:
                     signature_to_dict[signature] = {}
                 signature_to_dict[signature][offset] = instruction
                 file.entities[offset] = instruction
+                file.ordered_instructions[offset] = instruction
                 if instruction.cut_off:
                     file.cut_instructions[offset] = instruction
                     file.cut_instructions_count += 1
@@ -1533,6 +1552,45 @@ class PataponDebugger:
                 prev_function = state.function
                 pass
         return code_states
+
+    def follow_MIPS_func_names(self, until_in_range: range, delta_t: float, file_path: Optional[Path] = None,
+                               max_count: int = -1):
+        ret = asyncio.run(self.debugger.cpu_getReg("pc"))
+        PC = ret["uintValue"]
+        previous_function = "Random name"
+        func_list: List[str] = []
+        count = 0
+        while PC not in until_in_range:
+            if max_count != -1 and count >= max_count:  # may be optimized
+                break
+            ret = asyncio.run(self.debugger.memory_disasm(PC, 1, None))
+            func = ret["lines"][0]["function"]
+
+            if func == "":
+                # hle.func.scan hasn't been run beforehand
+                if previous_function != "":
+                    func_list.append("Unknown function")
+            else:
+                if previous_function != func:
+                    func_list.append(func)
+
+            ret = asyncio.run(self.debugger.cpu_stepInto())
+            previous_function = func
+            PC = ret["pc"]
+            count += 1
+            time.sleep(delta_t)
+
+        if file_path is None:
+            return func_list
+        if not func_list:
+            with open(file_path, "w", encoding="utf-8") as output:
+                pass
+            return func_list
+        with open(file_path, "w", encoding="utf-8") as output:
+            for func_name in func_list:
+                output.write(func_name)
+                output.write("\n")
+        return func_list
 
     def recognize_title_bin(self):
         # if OL_Title.bin is loaded, scan for funcs
