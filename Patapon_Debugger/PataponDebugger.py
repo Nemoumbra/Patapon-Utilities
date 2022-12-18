@@ -9,7 +9,6 @@ import struct
 from collections import Counter
 from pathlib import Path
 
-
 # from collections import namedtuple
 # import csv
 
@@ -135,6 +134,15 @@ def is_PAC_msg_table(data: bytes) -> bool:
 
 
 def binary_search(array: List, val: int) -> int:
+    """
+    This is the lower bound binary search:
+     - if val is in array, returns its index\n
+     - if val is bigger than every array element, returns the last index\n
+     - if array[i] < val < array[i+1], returns i\n
+     - if val is less than every array element, returns -1
+    :param array: a list to conduct the search in
+    :param val: the value to search for
+    """
     if not array:
         raise ValueError("List must not be empty!")
     lo = -1
@@ -145,15 +153,52 @@ def binary_search(array: List, val: int) -> int:
             lo = mid
         else:
             hi = mid
+
+    # if hi == len(array) => hi was never assigned to =>
+    # => for every array element x statement "val > x" holds =>
+    # => val is bigger than any element in array =>
+    # => we return the last index == lo
     if hi == len(array):
         return lo
+    # else there has been at least one assignment to hi =>
+    # there is at least one k such that val <= array[k] =>
+    # in the end val <= array[hi]
+
+    # it's useless to compare array[lo] and val as array[lo] is always less than val
+    # if element is found, we just return the index
     if array[hi] == val:
         return hi
+    # else either lo == -1 (val is less than every array element)
+    # or array[lo] < val < array[hi] => we return lo
     return lo
+
+
+def contains_bsearch(array: List, val: int) -> bool:
+    """
+    This binary search does the same thing as the operator "in", but faster - O(log(n))\n
+    :param array: a list to conduct the search in
+    :param val: the value to search for
+    :return: boolean value: does the array contain val?
+    """
+    if not array:
+        raise ValueError("List must not be empty!")
+    lo = -1
+    hi = len(array)
+    while hi - lo > 1:
+        mid = (hi + lo) // 2
+        if array[mid] < val:
+            lo = mid
+        else:
+            hi = mid
+    # if val in array, then its index is hi
+    if hi == len(array):
+        return False
+    return array[hi] == val
 
 
 def analyze_instruction_set(file_path: str):
     stats = Counter()
+    print(file_path[file_path.rfind("\\") + 1:])
     with open(file_path, encoding="utf-8") as source:
         for line in source:
             words = line.strip().split(";")
@@ -280,7 +325,7 @@ class MSG_file(Patapon_file):
             first = unpack_int_from_bytes(self.raw_data[8:12])
             for i in range(self.msg_count - 1):
                 # first is precomputed
-                second = unpack_int_from_bytes(self.raw_data[12 + 4*i:16 + 4*i])
+                second = unpack_int_from_bytes(self.raw_data[12 + 4 * i:16 + 4 * i])
                 self.strings.append(
                     read_wstring_from_bytes(self.raw_data, first, (second - first) // 2).replace("\x00", "")
                 )
@@ -292,7 +337,7 @@ class MSG_file(Patapon_file):
             return
         for i in range(self.msg_count):
             self.strings.append(
-                read_wstring_from_bytes(self.raw_data, unpack_int_from_bytes(self.raw_data[8 + 4*i:12 + 4*i]))
+                read_wstring_from_bytes(self.raw_data, unpack_int_from_bytes(self.raw_data[8 + 4 * i:12 + 4 * i]))
             )
 
     def __getitem__(self, index: int) -> str:
@@ -369,59 +414,6 @@ class PAC_instruction(Memory_entity):
     #     pass
     #     # What I want: self.PAC_params[i].type, self.PAC_params[i].name and self.PAC_params[i].value
 
-    # def compute_size(self):
-    #     key: PAC_instruction_param
-    #     # 0x8913aa0;25;17;2d;00;0;callMessageWindow;callMessageWindow;(description);17;
-    #     # uint32_t_T1;Pointer;
-    #     # V1;Offset;
-    #     # uint32_t_T2;Pointer;
-    #     # V2;Offset;
-    #     # uint32_t_T3;Pointer;
-    #     # V3;Offset;
-    #     # uint32_t_T4;Pointer;
-    #     # V4;Offset;
-    #     # uint32_t_T5;Pointer;
-    #     # V5;Offset;
-    #     # uint32_t_T6;Pointer;
-    #     # V6;Offset;
-    #     # uint32_t_T7;Pointer;
-    #     # V7;Offset;
-    #     # uint32_t_P;Jump destination;
-    #     # uint32_t_T8;Pointer;
-    #     # V8;Offset
-    #
-    #     # Removing unnecessary data:
-    #     # uint32_t_T1;
-    #     # V1;  this is uint32_t
-    #
-    #     # uint32_t_T2;
-    #     # V2;  this is uint32_t
-    #
-    #     # uint32_t_T3;
-    #     # V3;  this is float
-    #
-    #     # uint32_t_T4;
-    #     # V4;  this is float
-    #
-    #     # uint32_t_T5;
-    #     # V5;  this is float
-    #
-    #     # uint32_t_T6;
-    #     # V6;  this is uint32_t
-    #
-    #     # uint32_t_T7;
-    #     # V7;  this is uint32_t
-    #
-    #     # uint32_t_P;  this is uint32_t
-    #
-    #     # uint32_t_T8;
-    #     # V8;  this is uint32_t
-    #
-    #     for key in self.PAC_params.keys():
-    #         print(key.type)
-    #         pass
-    #     pass
-
     # def initialize_by_raw_data(self, raw: bytes):
     #     # should be called to make a non-template instruction
     #     pass
@@ -483,6 +475,7 @@ class PAC_instruction(Memory_entity):
                     # it means we're done
                     offset -= 4
                     break
+
                 undefined_param, val = values
 
                 params_dict[undefined_param] = val
@@ -855,6 +848,9 @@ class PAC_instruction(Memory_entity):
         # for pac_param, value in self.ordered_PAC_params:
         #     pass
 
+    def __repr__(self):
+        return f"{hex(self.signature)} ({self.name})"
+
 
 class Unknown_PAC_instruction(Memory_entity):
     def __init__(self, raw: bytes):
@@ -864,6 +860,12 @@ class Unknown_PAC_instruction(Memory_entity):
         self.instr_index = self.signature % 65536
         self.initialize_by_raw_data(raw)
         pass
+
+    def __str__(self):
+        return f"{hex(self.signature)}"
+
+    def __repr__(self):
+        return f"{hex(self.signature)}"
 
 
 class used_PAC_variables(NamedTuple):
@@ -923,13 +925,99 @@ class Switch_case_table(Memory_entity):
         self.branches = list(map(unpack_int_from_bytes, branches))
         pass
 
+    def __str__(self):
+        return f"Switch-case table: size = {self.size} bytes, branches count = {len(self.branches)}"
+
+
+class EntryPoint:
+    def __init__(self):
+        self.where_from: List[ExitPoint] = []
+        self.position: int = 0
+        self.instruction: Optional[PAC_instruction] = None
+        self.code_block: Optional[ContiguousCodeBlock] = None
+
+    def __repr__(self):
+        ans = f"Entry point: file offset = 0x{self.position:X}"
+        if self.instruction is not None:
+            ans += f"; 0x{self.instruction.signature:X} ({self.instruction.name})"
+        return ans
+
+    def __str__(self):
+        ans = f"Entry point: file offset = 0x{self.position:X}"
+        if self.instruction is not None:
+            ans += f"; 0x{self.instruction.signature:X} ({self.instruction.name})"
+        return ans
+
+
+class ExitPoint:
+    def __init__(self):
+        self.where_to: List[EntryPoint] = []
+        self.position: int = 0
+        self.instruction: Optional[PAC_instruction] = None
+        self.code_block: Optional[ContiguousCodeBlock] = None
+
+    def __repr__(self):
+        ans = f"Exit point: file offset = 0x{self.position:X}"
+        if self.instruction is not None:
+            ans += f"; 0x{self.instruction.signature:X} ({self.instruction.name})"
+        return ans
+
+    def __str__(self):
+        ans = f"Exit point: file offset = 0x{self.position:X}"
+        if self.instruction is not None:
+            ans += f"; 0x{self.instruction.signature:X} ({self.instruction.name})"
+        return ans
+
 
 class RawDataBlock:
     pass
 
 
 class ContiguousCodeBlock:
-    pass
+    def __init__(self):
+        self.size: int = 0
+        self.start: int = 0
+        self.instructions: Dict[int, PAC_instruction] = {}  # int is absolute file offset
+        self.instructions_offsets: List[int] = []
+        self.ordered_instructions: List[PAC_instruction] = []
+        # self.entry_points: List[EntryPoint] = []
+        self.entry_points: Dict[int, EntryPoint] = {}
+        self.exit_point: ExitPoint = ExitPoint()
+
+    def __repr__(self):
+        return f"Code block (number of instructions = {len(self.instructions)}, size = {self.size} bytes)"
+
+    def __str__(self):
+        return f"Code block (number of instructions = {len(self.instructions)}, size = {self.size} bytes)"
+
+    def add_jump_to(self, to: int, exit_point: ExitPoint) -> bool:
+        # valid_start = contains_bsearch(self.instructions_offsets, to)
+        if not contains_bsearch(self.instructions_offsets, to):
+            # This means the same as "if to not in self.instructions_offsets"
+            if to < self.instructions_offsets[0]:
+                self.entry_points[self.start].where_from.append(exit_point)
+                exit_point.where_to.append(self.entry_points[self.start])
+                return True
+            # Angrily stare and report back
+            return False
+
+        # Else to is a valid instruction start => self.instructions[to] is valid
+        if to not in self.entry_points.keys():
+            # Let's make a new entry point here...
+            entry_point = EntryPoint()
+            # ... initialize it...
+            entry_point.code_block = self
+            entry_point.instruction = self.instructions[to]
+            entry_point.position = to
+            entry_point.where_from.append(exit_point)
+            # ...and add to the dictionary!
+            exit_point.where_to.append(entry_point)
+            self.entry_points[to] = entry_point
+        else:
+            # There is already one there so let's modify it
+            self.entry_points[to].where_from.append(exit_point)
+            exit_point.where_to.append(self.entry_points[to])
+        return True
 
 
 class PAC_file(Patapon_file):
@@ -947,16 +1035,21 @@ class PAC_file(Patapon_file):
         self.left_out_PAC_arguments: Dict[int, Left_out_PAC_arguments] = {}
         # self.contains_msg_table: bool = False
         self.msg_tables: Dict[int, PAC_message_table] = {}
-        self.instructions: FrozenKeysDict = FrozenKeysDict.FrozenKeysDict()
-        self.unknown_instructions: FrozenKeysDict = FrozenKeysDict.FrozenKeysDict()  # value type == ?
+
+        # self.temp_instructions: Dict[int, Dict[int, PAC_instruction]] = {}
+        self.instructions: Dict[int, Dict[int, PAC_instruction]] = {}
+
+        self.unknown_instructions: Dict[int, Dict[int, Unknown_PAC_instruction]] = {}
+        # self.unknown_instructions: FrozenKeysDict = FrozenKeysDict.FrozenKeysDict()  # value type == ?
+
         self.ordered_instructions: Dict[int, PAC_instruction] = {}
         self.entities_offsets: List[int] = []
         self.entities: Dict[int, Union[Memory_entity, Padding_bytes, Switch_case_table, PAC_message_table,
                                        Left_out_PAC_arguments, Unknown_PAC_instruction, PAC_instruction]] = {}
 
     def get_entity_by_offset(self, offset: int) -> Tuple[int, Union[Memory_entity, Padding_bytes,
-                                                         Switch_case_table, PAC_message_table, Left_out_PAC_arguments,
-                                                         Unknown_PAC_instruction, PAC_instruction]]:
+                                                                    Switch_case_table, PAC_message_table, Left_out_PAC_arguments,
+                                                                    Unknown_PAC_instruction, PAC_instruction]]:
         starting_offset = self.entities_offsets[binary_search(self.entities_offsets, offset)]
         return starting_offset, self.entities[starting_offset]
 
@@ -1032,6 +1125,196 @@ class MIPS_code_state:
 
 class PAC_analysis_results:
     def __init__(self):
+        pass
+
+
+def defaultMayBeInstruction(signature: int) -> bool:
+    return True
+
+
+class PAC_parser:
+    def __init__(self):
+        self.templates: Dict[int, PAC_instruction_template] = {}
+        self.jump_table_next_to_switch = True
+        self.cmd_inxJmp_signature = 0x0
+        self.find_unknown_instructions = True
+        self.PAC_signature_to_name: Dict[int, str] = {}  # maybe not needed...
+        self.templates: Dict[int, PAC_instruction_template] = {}
+        self.instruction_heuristic: Callable[[int], bool] = defaultMayBeInstruction
+
+        self.file: PAC_file = PAC_file()
+        self.cur_offset = 0
+        self.last_offset = 0
+        self.last_was_instruction = False
+        self.cur_signature = 0x0
+
+    def mayBeInstruction(self, signature: int):
+        return self.instruction_heuristic(signature)
+
+    def acceptTemplates(self, PAC_instruction_templates: Dict[int, PAC_instruction_template]):
+        self.templates = PAC_instruction_templates
+
+    def findNextInstruction(self) -> bool:
+        """
+        Tries to advance cur_offset to the next instruction or unknown instruction\n
+        :return: True on success (if the file suffix contains instructions or unknown instructions)
+        """
+        percent = 0x25
+        while True:
+            # TO DO: implement alignment settings for better parsing
+            # TO DO: maybe request that self.cur_offset < self.file.size - 4 and play with it to omit checking?
+            while self.cur_offset < self.file.size and self.file.raw_data[self.cur_offset] != percent:
+                self.cur_offset += 1
+            # Now let's make a check...
+            if self.cur_offset + 3 < self.file.size:
+                # We have enough bytes
+                if self.find_unknown_instructions:
+                    # Here we use some sort of heuristic
+                    if self.mayBeInstruction(struct.unpack_from("<i", self.file.raw_data, self.cur_offset)[0]):
+                        return True
+                    else:
+                        self.cur_offset += 1
+                else:
+                    # Here we test if the signature is known
+                    if struct.unpack_from("<i", self.file.raw_data, self.cur_offset)[0] in self.templates:
+                        return True
+                    else:
+                        self.cur_offset += 1
+            else:
+                # We don't have enough bytes
+                return False
+
+    def processMessageTable(self, raw: bytes):
+        msg_table = PAC_message_table()
+        msg_table.initialize_by_raw_data(raw)
+        self.file.msg_tables[self.last_offset] = msg_table
+        self.file.entities[self.last_offset] = msg_table
+
+    def processLeftOutArgs(self, raw: bytes):
+        instr_offset = self.file.entities_offsets[-1]
+        args = Left_out_PAC_arguments(self.file.raw_data[instr_offset:], self.last_offset - instr_offset)
+        self.file.left_out_PAC_arguments[self.last_offset] = args
+        self.file.entities[self.last_offset] = args
+
+    def processMemoryEntity(self, raw: bytes):
+        entity = Memory_entity()
+        entity.initialize_by_raw_data(raw)
+        self.file.raw_entities[self.last_offset] = entity
+        self.file.entities[self.last_offset] = entity
+
+    def processRawData(self):
+        """
+        Attempts to create a raw entity (either MSG table, left out PAC arguments or Memory entity) \n
+        from the range [self.cur_offset; self.last_offset) and advances self.last_offset
+        :return: Does not return anything
+        """
+        if self.cur_offset == self.last_offset:
+            return
+        raw = self.file.raw_data[self.last_offset:self.cur_offset]
+        if is_PAC_msg_table(raw):
+            self.processMessageTable(raw)
+        elif self.last_was_instruction and is_left_out_PAC_args(raw):
+            self.processLeftOutArgs(raw)
+        else:
+            self.processMemoryEntity(raw)
+
+        self.file.entities_offsets.append(self.last_offset)
+        self.last_offset = self.cur_offset
+        self.last_was_instruction = False
+
+    def processInstruction(self):
+        # self.cur_signature must be set before calling this
+        self.file.entities_offsets.append(self.cur_offset)
+        template = self.templates[self.cur_signature]
+        instruction = PAC_instruction(self.file.raw_data, self.cur_offset, template)
+
+        if self.cur_signature not in self.file.instructions:
+            self.file.instructions[self.cur_signature] = {}
+        self.file.instructions[self.cur_signature][self.cur_offset] = instruction
+
+        self.file.entities[self.cur_offset] = instruction
+        self.file.ordered_instructions[self.cur_offset] = instruction
+
+        if instruction.cut_off:
+            self.file.cut_instructions[self.cur_offset] = instruction
+            self.file.cut_instructions_count += 1
+
+        self.cur_offset += instruction.size
+
+        # Special cmd_inxJmp case:
+        if self.jump_table_next_to_switch and self.cur_signature == self.cmd_inxJmp_signature:
+            res = self.findNextInstruction()
+            self.processAddressTable()
+
+        if template.PAC_params and template.PAC_params[-1].type == "string":
+            self.fixAlignment()
+
+    def processUnknownInstruction(self):
+        # assumes self.last_offset == self.cur_offset
+        self.cur_offset += 4
+        res = self.findNextInstruction()
+
+        # Unknown instruction will be from self.last_offset to self.cur_offset
+        if not res:
+            # No more instructions => the whole file suffix is an unknown instruction
+            self.cur_offset = self.file.size
+
+        raw = self.file.raw_data[self.last_offset:self.cur_offset]
+
+        if self.cur_signature not in self.file.unknown_instructions:
+            self.file.unknown_instructions[self.cur_signature] = {}
+
+        unknown_instruction = Unknown_PAC_instruction(raw)
+        self.file.unknown_instructions[self.cur_signature][self.last_offset] = unknown_instruction
+        self.file.entities[self.last_offset] = unknown_instruction
+        self.file.unknown_instructions_count += 1
+        pass
+
+    def fixAlignment(self):
+        if self.cur_offset % 4 != 0:
+            padding = Padding_bytes(4)
+            padding_bytes_length = 4 - (self.cur_offset % 4)
+            padding_raw = self.file.raw_data[self.cur_offset:self.cur_offset + padding_bytes_length]
+            padding.initialize_by_raw_data(padding_raw)
+            self.file.padding_bytes[self.cur_offset] = padding
+
+            self.file.entities[self.cur_offset] = padding
+            self.file.entities_offsets.append(self.cur_offset)
+            self.cur_offset += padding_bytes_length
+            pass
+
+    def processAddressTable(self):
+        if self.cur_offset == self.last_offset:
+            return
+        raw = self.file.raw_data[self.last_offset:self.cur_offset]
+        table = Switch_case_table()
+        table.initialize_by_raw_data(raw)
+
+        self.file.entities_offsets.append(self.last_offset)
+        self.file.entities[self.last_offset] = table
+        self.file.switch_case_tables[self.last_offset] = table
+
+    def parse(self):
+        if self.file.raw_data == b"":
+            raise RuntimeError("PAC file raw data is empty!")
+
+        while self.cur_offset < self.file.size:
+            res = self.findNextInstruction()
+            if res:
+                self.processRawData()
+                # now self.last_offset == self.cur_offset
+                signature = struct.unpack_from("<i", self.file.raw_data, self.cur_offset)[0]
+                self.cur_signature = signature
+
+                # self.find_unknown_instructions == False => the else clause is never executed
+                if signature in self.templates:
+                    self.processInstruction()
+                else:
+                    self.processUnknownInstruction()
+            else:
+                # No more instructions => self.file.raw_data[self.last_offset:] is a raw entity
+                self.cur_offset = self.file.size
+                self.processRawData()
         pass
 
 
@@ -1117,8 +1400,8 @@ class PataponDebugger:
         if file.raw_data == b"":
             raise RuntimeError("PAC file raw data is empty!")
         # let's start!
-        signature_to_dict: Dict[int, Dict[int, PAC_instruction]] = {}
-        unk_signature_to_dict: Dict[int, Dict[int, Unknown_PAC_instruction]] = {}
+        # signature_to_dict: Dict[int, Dict[int, PAC_instruction]] = {}
+        # unk_signature_to_dict: Dict[int, Dict[int, Unknown_PAC_instruction]] = {}
         offset = 0
         previous_offset = 0
         percent = 0x25
@@ -1135,7 +1418,7 @@ class PataponDebugger:
                 # maybe this is not a real instruction...?
                 if offset + 3 < file.size:
                     # well, there is enough bytes, but we're not satisfied yet
-                    last_bytes = file.raw_data[offset+2:offset+4]
+                    last_bytes = file.raw_data[offset + 2:offset + 4]
                     if last_bytes[0] != 0 and last_bytes[1] <= 0x23:
                         # fine...
                         instruction_found = True
@@ -1234,9 +1517,9 @@ class PataponDebugger:
                         # we need to make the whole file suffix a part of this unknown instruction
                         raw = file.raw_data[offset:]
                         unknown_instruction = Unknown_PAC_instruction(raw)
-                        if signature not in unk_signature_to_dict:
-                            unk_signature_to_dict[signature] = {}
-                        unk_signature_to_dict[signature][offset] = unknown_instruction
+                        if signature not in file.unknown_instructions:
+                            file.unknown_instructions[signature] = {}
+                        file.unknown_instructions[signature][offset] = unknown_instruction
                         file.entities[offset] = unknown_instruction
                         file.unknown_instructions_count += 1
                         break
@@ -1248,9 +1531,9 @@ class PataponDebugger:
                 skipped_count = next_instr_offset - offset
                 raw = file.raw_data[offset:next_instr_offset]
                 unknown_instruction = Unknown_PAC_instruction(raw)
-                if signature not in unk_signature_to_dict:
-                    unk_signature_to_dict[signature] = {}
-                unk_signature_to_dict[signature][offset] = unknown_instruction
+                if signature not in file.unknown_instructions:
+                    file.unknown_instructions[signature] = {}
+                file.unknown_instructions[signature][offset] = unknown_instruction
                 file.entities[offset] = unknown_instruction
 
                 # The following code is no longer necessary
@@ -1268,9 +1551,9 @@ class PataponDebugger:
                 # if signature == 0x25000700:
                 #     print("cmd_mov")
 
-                if signature not in signature_to_dict:
-                    signature_to_dict[signature] = {}
-                signature_to_dict[signature][offset] = instruction
+                if signature not in file.instructions:
+                    file.instructions[signature] = {}
+                file.instructions[signature][offset] = instruction
                 file.entities[offset] = instruction
                 file.ordered_instructions[offset] = instruction
                 if instruction.cut_off:
@@ -1333,8 +1616,8 @@ class PataponDebugger:
 
         # We need to make a map <signature, map <location, PAC_instruction>>
         # Prepare dict and initialize FrozenKeysDict with it:
-        file.instructions.initialize_from_dict(signature_to_dict)
-        file.unknown_instructions.initialize_from_dict(unk_signature_to_dict)
+        # file.instructions.initialize_from_dict(signature_to_dict)
+        # file.unknown_instructions.initialize_from_dict(file.temp_unknown_instructions)
 
         pass
 
@@ -1413,7 +1696,7 @@ class PataponDebugger:
                 ret = asyncio.run(self.debugger.cpu_stepInto())  # cpu.stepping
                 PC = ret["pc"]
                 opcode = self.debugger.memory_read_int(PC)
-                opcode %= 2**32
+                opcode %= 2 ** 32
                 if opcode == jalr_t9_signature:
                     print(f"jalr t9 found at {PC:#x}")
                 # ret = asyncio.run(self.debugger.memory_disasm(PC, 1, None))
@@ -1510,7 +1793,7 @@ class PataponDebugger:
             disasm_info = ret["lines"][0]
             name = disasm_info["name"]
             params = disasm_info["params"]
-            opcode = self.debugger.memory_read_int(PC) % (2**32)
+            opcode = self.debugger.memory_read_int(PC) % (2 ** 32)
             func = disasm_info["function"]
 
             state = MIPS_code_state()
