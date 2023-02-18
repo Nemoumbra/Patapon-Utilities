@@ -1,3 +1,4 @@
+import os
 import time
 
 import PPSSPPDebugger
@@ -8,6 +9,10 @@ import FrozenKeysDict
 import struct
 from collections import Counter
 from pathlib import Path
+import hashlib
+import parse
+import websockets
+import json
 
 # from collections import namedtuple
 # import csv
@@ -136,7 +141,7 @@ def is_PAC_msg_table(data: bytes) -> bool:
 def binary_search(array: List, val: int) -> int:
     """
     This is the lower bound binary search:
-     - if val is in array, returns its index\n
+     - if array contains val, returns its index\n
      - if val is bigger than every array element, returns the last index\n
      - if array[i] < val < array[i+1], returns i\n
      - if val is less than every array element, returns -1
@@ -173,10 +178,51 @@ def binary_search(array: List, val: int) -> int:
     return lo
 
 
+def binary_search_lambda(array: List, val: int, key: Callable[[Any], int]) -> int:
+    """
+    This is the lower bound binary search:
+     - if array contains val, returns its index\n
+     - if val is bigger than every array element, returns the last index\n
+     - if array[i] < val < array[i+1], returns i\n
+     - if val is less than every array element, returns -1
+    :param array: a list to conduct the search in
+    :param val: the value to search for
+    :param key: the lambda function used when comparing array[mid] and val
+    """
+    if not array:
+        raise ValueError("List must not be empty!")
+    lo = -1
+    hi = len(array)
+    while hi - lo > 1:
+        mid = (hi + lo) // 2
+        if key(array[mid]) < val:
+            lo = mid
+        else:
+            hi = mid
+
+    # if hi == len(array) => hi was never assigned to =>
+    # => for every array element x statement "val > x" holds =>
+    # => val is bigger than any element in array =>
+    # => we return the last index == lo
+    if hi == len(array):
+        return lo
+    # else there has been at least one assignment to hi =>
+    # there is at least one k such that val <= array[k] =>
+    # in the end val <= array[hi]
+
+    # it's useless to compare array[lo] and val as array[lo] is always less than val
+    # if element is found, we just return the index
+    if key(array[hi]) == val:
+        return hi
+    # else either lo == -1 (val is less than every array element)
+    # or array[lo] < val < array[hi] => we return lo
+    return lo
+
+
 def contains_bsearch(array: List, val: int) -> bool:
     """
     This binary search does the same thing as the operator "in", but faster - O(log(n))\n
-    :param array: a list to conduct the search in
+    :param array: a sorted list to conduct the search in
     :param val: the value to search for
     :return: boolean value: does the array contain val?
     """
@@ -238,10 +284,6 @@ def read_PAC_string_argument(data: bytes, offset: int) -> Tuple[str, int]:
         offset += 1
     length = offset - original_offset + 1
     return read_shift_jis_from_bytes(data, original_offset, length), length
-
-
-def read_PAC_var_argument(data: bytes, offset: int, sizeof: int = 4) -> Tuple[str, Union[int, float]]:
-    pass
 
 
 def is_PAC_instruction(data: bytes, offset: int) -> bool:
@@ -358,17 +400,16 @@ class MSG_file(Patapon_file):
 # param_1_type;param_1_name;param_2_type;param_2_name...
 # raw_size(hex) == 0 <=> size unknown
 
-
-# class PAC_params:
-#     def __int__(self):
-#         count = 0
-
-
-# PAC_instruction_param = namedtuple("type", "name")
-
 class PAC_instruction_param(NamedTuple):
     type: str
     name: str
+
+
+class PAC_variables(NamedTuple):
+    var_0x4: Set[int]
+    var_0x8: Set[int]
+    var_0x20: Set[int]
+    var_0x40: Set[int]
 
 
 class PAC_instruction_template:
@@ -392,40 +433,6 @@ class PAC_instruction_template:
 
 
 class PAC_instruction(Memory_entity):
-    # def __init__(self, instr_info: List[str], args_info: List[str]):
-    #     Memory_entity.__init__(self)
-    #
-    #     # address;A;B;C;D;raw_size(hex);function_name;extended_name;function_desc;param_amount;
-    #     # raw_size, ext_name and param_amount are unused so far
-    #     # raw_size(hex) == 0 <=> size unknown
-    #
-    #     self.function_address: int = int(instr_info[0], 16)
-    #     self.signature: int = int("".join(instr_info[1:5]), 16)
-    #     self.name: str = instr_info[6]
-    #     self.description: str = instr_info[8]
-    #     # param_1_type;param_1_name;param_2_type;param_2_name...
-    #     self.PAC_params: FrozenKeysDict = FrozenKeysDict.FrozenKeysDict()
-    #     # Let's make a list of PAC_instruction_param
-    #     zipped = zip(args_info[0::2], args_info[1::2])
-    #     to_namedtuple = [PAC_instruction_param(*i) for i in zipped]
-    #     args: Dict[PAC_instruction_param, Any] = dict.fromkeys(to_namedtuple)
-    #
-    #     self.PAC_params.initialize_from_dict(args)
-    #     pass
-    #     # What I want: self.PAC_params[i].type, self.PAC_params[i].name and self.PAC_params[i].value
-
-    # def initialize_by_raw_data(self, raw: bytes):
-    #     # should be called to make a non-template instruction
-    #     pass
-
-    # Value types:
-    # 0 - uint32_t
-    # 1 - float
-    # 2 - string
-    # 100 - uint32_t_P
-    # 10xx - uint32_t_Tx
-    # 20xx - Vx
-    # * /
 
     def __init__(self, raw: bytes, offset: int, template: PAC_instruction_template):
         Memory_entity.__init__(self)
@@ -737,111 +744,6 @@ class PAC_instruction(Memory_entity):
                     offset += 4
         return res, offset
 
-    # outdated
-    def initialize_from_template(self, raw: bytes, offset: int, template: PAC_instruction_template):
-        self.function_address = template.function_address
-        self.signature = template.signature
-        self.name = template.name
-        self.description = template.description
-
-        self.PAC_params: FrozenKeysDict = FrozenKeysDict.FrozenKeysDict()
-        params_dict: Dict[PAC_instruction_param, Any] = {}
-
-        original_offset = offset
-        offset += 4  # skip the signature
-
-        # TO DO: make sure that every entry in the dict will be distinct
-        for param in template.PAC_params:
-            if param.type == "uintX_t":  # unfinished
-                pass
-            elif param.type.startswith("uintX_t_T"):  # unfinished
-                pass
-            elif param.type.startswith("uint32_t_T"):
-                arg_type = read_int_from_bytes(raw, offset, "little")
-                offset += 4
-                undefined_param: PAC_instruction_param
-
-                if arg_type == 0x40:
-                    val = read_int_from_bytes(raw, offset, "little")
-                    undefined_param = PAC_instruction_param("0x40 variable", "pointer")
-                elif arg_type == 0x20:
-                    val = read_int_from_bytes(raw, offset, "little")
-                    undefined_param = PAC_instruction_param("0x20 variable", "pointer")
-                elif arg_type == 0x10:  # float
-                    val = read_float_from_bytes(raw, offset)
-                    undefined_param = PAC_instruction_param("float", "pointer")
-                elif arg_type == 0x8:
-                    val = read_int_from_bytes(raw, offset, "little")
-                    undefined_param = PAC_instruction_param("0x8 variable", "pointer")
-                elif arg_type == 0x4:
-                    val = read_int_from_bytes(raw, offset, "little")
-                    undefined_param = PAC_instruction_param("0x4 variable", "pointer")
-                elif arg_type == 0x2:
-                    val = read_int_from_bytes(raw, offset, "little")
-                    undefined_param = PAC_instruction_param("uint32_t", "pointer")
-                elif arg_type == 0x1:
-                    val = read_int_from_bytes(raw, offset, "little")
-                    undefined_param = PAC_instruction_param("0x1 value", "pointer")
-                else:
-                    val = read_int_from_bytes(raw, offset, "little")
-                    undefined_param = PAC_instruction_param("Unknown", "pointer")
-
-                self.PAC_params[undefined_param] = val
-                offset += 4
-            elif param.type == "float":
-                val = read_float_from_bytes(raw, offset)
-                params_dict[param] = val
-                offset += 4
-            elif param.type == "string":
-                val = read_string_from_bytes(raw, offset)
-                self.PAC_params[param] = val
-                length = len(val)
-                offset += length + 2  # right...?
-            elif param.type.startswith("COUNT_"):  # unfinished
-                count = read_int_from_bytes(raw, offset, "little")
-                offset += 4
-                for i in range(count):
-                    val = read_int_from_bytes(raw, offset, "little")
-                    count_param = PAC_instruction_param(f"count_{i}", "Unknown")
-                    self.PAC_params[count_param] = val
-                    offset += 4
-                pass
-            elif param.type == "uint32_t" or param.type == "uint32_t_P" or param.type == "uint32_t_P_ret":
-                val = read_int_from_bytes(raw, offset, "little")
-                self.PAC_params[param] = val
-                offset += 4
-                pass
-            elif param.type.startswith("CONTINOUS_"):  # unfinished
-                # TO DO: fix the typo in the file
-                remains = len(raw) - offset
-                integer_count = remains // 4
-                for i in range(integer_count):
-                    val = read_int_from_bytes(raw, offset, "little")
-                    continuous_param = PAC_instruction_param(f"continuous_{i}", "Unknown")
-                    self.PAC_params[continuous_param] = val
-                    offset += 4
-                pass
-            elif param.type == "ENTITY_ID":
-                val = read_int_from_bytes(raw, offset, "little")
-                self.PAC_params[param] = val
-                offset += 4
-                pass
-            elif param.type == "EQUIP_ID":
-                val = read_int_from_bytes(raw, offset, "little")
-                self.PAC_params[param] = val
-                offset += 4
-                pass
-            elif param.type == "KEYBIND_ID":
-                val = read_int_from_bytes(raw, offset, "little")
-                self.PAC_params[param] = val
-                offset += 4
-                pass
-            else:
-                pass
-        self.PAC_params.initialize_from_dict(params_dict)
-        # we are done now, so let's initialize raw data
-        self.initialize_by_raw_data(raw[original_offset:offset])
-
     def __str__(self):  # unfinished
         ans = f"{hex(self.signature)} ({self.name})"
         return ans
@@ -850,6 +752,21 @@ class PAC_instruction(Memory_entity):
 
     def __repr__(self):
         return f"{hex(self.signature)} ({self.name})"
+
+    def get_used_pac_vars(self) -> PAC_variables:
+        args = self.ordered_PAC_params
+        used = PAC_variables(set(), set(), set(), set())
+        for arg in args:
+            arg_type = arg[0].type
+            if arg_type.startswith("0x4 "):
+                used.var_0x4.add(arg[1])
+            elif arg_type.startswith("0x8 "):
+                used.var_0x8.add(arg[1])
+            elif arg_type.startswith("0x20 "):
+                used.var_0x20.add(arg[1])
+            elif arg_type.startswith("0x40 "):
+                used.var_0x40.add(arg[1])
+        return used
 
 
 class Unknown_PAC_instruction(Memory_entity):
@@ -866,29 +783,6 @@ class Unknown_PAC_instruction(Memory_entity):
 
     def __repr__(self):
         return f"{hex(self.signature)}"
-
-
-class used_PAC_variables(NamedTuple):
-    var_0x4: Set[int]
-    var_0x8: Set[int]
-    var_0x20: Set[int]
-    var_0x40: Set[int]
-
-
-def get_used_pac_vars(instruction: PAC_instruction) -> used_PAC_variables:
-    args = instruction.ordered_PAC_params
-    used = used_PAC_variables(set(), set(), set(), set())
-    for arg in args:
-        arg_type = arg[0].type
-        if arg_type.startswith("0x4 "):
-            used.var_0x4.add(arg[1])
-        elif arg_type.startswith("0x8 "):
-            used.var_0x8.add(arg[1])
-        elif arg_type.startswith("0x20 "):
-            used.var_0x20.add(arg[1])
-        elif arg_type.startswith("0x40 "):
-            used.var_0x40.add(arg[1])
-    return used
 
 
 class Left_out_PAC_arguments(Memory_entity):
@@ -929,9 +823,32 @@ class Switch_case_table(Memory_entity):
         return f"Switch-case table: size = {self.size} bytes, branches count = {len(self.branches)}"
 
 
+# Maybe use dataclasses here?
+class PAC_transition(NamedTuple):
+    save_address: bool
+    fallthrough: bool
+    potential: bool
+
+
+class PAC_Edge:
+    __slots__ = ("entry", "exit", "properties")
+
+    def __init__(self):
+        self.entry = EntryPoint()
+        self.exit = ExitPoint()
+        # self.save_address = False
+        self.properties = PAC_transition(False, True, False)
+
+    def __repr__(self):
+        return f"Edge from 0x{self.exit.position:X} to 0x{self.entry.position:X}"
+
+    def __str__(self):
+        return f"Edge from 0x{self.exit.position:X} to 0x{self.entry.position:X}"
+
+
 class EntryPoint:
     def __init__(self):
-        self.where_from: List[ExitPoint] = []
+        self.where_from: List[PAC_Edge] = []
         self.position: int = 0
         self.instruction: Optional[PAC_instruction] = None
         self.code_block: Optional[ContiguousCodeBlock] = None
@@ -951,7 +868,7 @@ class EntryPoint:
 
 class ExitPoint:
     def __init__(self):
-        self.where_to: List[EntryPoint] = []
+        self.where_to: List[PAC_Edge] = []
         self.position: int = 0
         self.instruction: Optional[PAC_instruction] = None
         self.code_block: Optional[ContiguousCodeBlock] = None
@@ -969,6 +886,7 @@ class ExitPoint:
         return ans
 
 
+# unused
 class RawDataBlock:
     pass
 
@@ -984,24 +902,47 @@ class ContiguousCodeBlock:
         self.entry_points: Dict[int, EntryPoint] = {}
         self.exit_point: ExitPoint = ExitPoint()
 
+        self.is_split: bool = False
+        self.is_source: bool = True
+
     def __repr__(self):
         return f"Code block (number of instructions = {len(self.instructions)}, size = {self.size} bytes)"
 
     def __str__(self):
         return f"Code block (number of instructions = {len(self.instructions)}, size = {self.size} bytes)"
 
-    def add_jump_to(self, to: int, exit_point: ExitPoint) -> bool:
+    def accept_jump_to(self, to: int, exit_point: ExitPoint, transition: PAC_transition) -> bool:
+        """
+        Makes the block create a connection going from the exitpoint to the offset 'to'\n
+        :param to: PAC offset which belongs to this block or precedes it
+        :param exit_point: some other block's exitpoint
+        :param transition: properties of this transition
+        :return: True on success
+        """
         # valid_start = contains_bsearch(self.instructions_offsets, to)
         if not contains_bsearch(self.instructions_offsets, to):
             # This means the same as "if to not in self.instructions_offsets"
+
+            # We only accept this when the offset is pointing to the part that goes before the block
             if to < self.instructions_offsets[0]:
-                self.entry_points[self.start].where_from.append(exit_point)
-                exit_point.where_to.append(self.entry_points[self.start])
+                edge = PAC_Edge()
+                edge.entry = self.entry_points[self.start]
+                edge.exit = exit_point
+                edge.properties = transition
+
+                edge.entry.where_from.append(edge)
+                edge.exit.where_to.append(edge)
+
+                self.is_source = False
                 return True
-            # Angrily stare and report back
+            # Report back the issue
             return False
 
-        # Else to is a valid instruction start => self.instructions[to] is valid
+        # In this case to is a valid instruction start => self.instructions[to] is valid
+        edge = PAC_Edge()
+        edge.exit = exit_point
+        edge.properties = transition
+
         if to not in self.entry_points.keys():
             # Let's make a new entry point here...
             entry_point = EntryPoint()
@@ -1009,15 +950,26 @@ class ContiguousCodeBlock:
             entry_point.code_block = self
             entry_point.instruction = self.instructions[to]
             entry_point.position = to
-            entry_point.where_from.append(exit_point)
-            # ...and add to the dictionary!
-            exit_point.where_to.append(entry_point)
+
+            edge.entry = entry_point
+            edge.entry.where_from.append(edge)
+            # ...and add to the dictionary.
+            edge.exit.where_to.append(edge)
             self.entry_points[to] = entry_point
         else:
             # There is already one there so let's modify it
-            self.entry_points[to].where_from.append(exit_point)
-            exit_point.where_to.append(self.entry_points[to])
+            edge.entry = self.entry_points[to]
+            edge.entry.where_from.append(edge)
+            edge.exit.where_to.append(edge)
+
+        self.is_source = False
         return True
+
+    def to_dot_str(self):
+        return "\\n".join([instr.name + f" (0x{offset:X})" for offset, instr in self.instructions.items()])
+
+    def get_entry_point(self) -> EntryPoint:
+        return next(iter(self.entry_points.values()))
 
 
 class PAC_file(Patapon_file):
@@ -1047,9 +999,11 @@ class PAC_file(Patapon_file):
         self.entities: Dict[int, Union[Memory_entity, Padding_bytes, Switch_case_table, PAC_message_table,
                                        Left_out_PAC_arguments, Unknown_PAC_instruction, PAC_instruction]] = {}
 
-    def get_entity_by_offset(self, offset: int) -> Tuple[int, Union[Memory_entity, Padding_bytes,
-                                                                    Switch_case_table, PAC_message_table, Left_out_PAC_arguments,
-                                                                    Unknown_PAC_instruction, PAC_instruction]]:
+    def get_entity_by_offset(self, offset: int) -> Tuple[int, Union[
+            Memory_entity, Padding_bytes, Switch_case_table, PAC_message_table, Left_out_PAC_arguments,
+            Unknown_PAC_instruction, PAC_instruction
+        ]
+    ]:
         starting_offset = self.entities_offsets[binary_search(self.entities_offsets, offset)]
         return starting_offset, self.entities[starting_offset]
 
@@ -1129,7 +1083,10 @@ class PAC_analysis_results:
 
 
 def defaultMayBeInstruction(signature: int) -> bool:
-    return True
+    if signature % 256 > 0x24:
+        return False
+    signature //= 256
+    return signature % 256 != 0
 
 
 class PAC_parser:
@@ -1151,7 +1108,7 @@ class PAC_parser:
     def mayBeInstruction(self, signature: int):
         return self.instruction_heuristic(signature)
 
-    def acceptTemplates(self, PAC_instruction_templates: Dict[int, PAC_instruction_template]):
+    def setTemplates(self, PAC_instruction_templates: Dict[int, PAC_instruction_template]):
         self.templates = PAC_instruction_templates
 
     def findNextInstruction(self) -> bool:
@@ -1170,13 +1127,13 @@ class PAC_parser:
                 # We have enough bytes
                 if self.find_unknown_instructions:
                     # Here we use some sort of heuristic
-                    if self.mayBeInstruction(struct.unpack_from("<i", self.file.raw_data, self.cur_offset)[0]):
+                    if self.mayBeInstruction(struct.unpack_from(">i", self.file.raw_data, self.cur_offset)[0]):
                         return True
                     else:
                         self.cur_offset += 1
                 else:
                     # Here we test if the signature is known
-                    if struct.unpack_from("<i", self.file.raw_data, self.cur_offset)[0] in self.templates:
+                    if struct.unpack_from(">i", self.file.raw_data, self.cur_offset)[0] in self.templates:
                         return True
                     else:
                         self.cur_offset += 1
@@ -1192,7 +1149,8 @@ class PAC_parser:
 
     def processLeftOutArgs(self, raw: bytes):
         instr_offset = self.file.entities_offsets[-1]
-        args = Left_out_PAC_arguments(self.file.raw_data[instr_offset:], self.last_offset - instr_offset)
+        instr_bytes = self.file.ordered_instructions[instr_offset].raw_data
+        args = Left_out_PAC_arguments(instr_bytes + raw, self.last_offset - instr_offset)
         self.file.left_out_PAC_arguments[self.last_offset] = args
         self.file.entities[self.last_offset] = args
 
@@ -1210,6 +1168,7 @@ class PAC_parser:
         """
         if self.cur_offset == self.last_offset:
             return
+
         raw = self.file.raw_data[self.last_offset:self.cur_offset]
         if is_PAC_msg_table(raw):
             self.processMessageTable(raw)
@@ -1240,14 +1199,17 @@ class PAC_parser:
             self.file.cut_instructions_count += 1
 
         self.cur_offset += instruction.size
+        self.last_offset += instruction.size
 
         # Special cmd_inxJmp case:
         if self.jump_table_next_to_switch and self.cur_signature == self.cmd_inxJmp_signature:
-            res = self.findNextInstruction()
+            self.findNextInstruction()
             self.processAddressTable()
 
         if template.PAC_params and template.PAC_params[-1].type == "string":
             self.fixAlignment()
+
+        self.last_was_instruction = True
 
     def processUnknownInstruction(self):
         # assumes self.last_offset == self.cur_offset
@@ -1267,7 +1229,9 @@ class PAC_parser:
         unknown_instruction = Unknown_PAC_instruction(raw)
         self.file.unknown_instructions[self.cur_signature][self.last_offset] = unknown_instruction
         self.file.entities[self.last_offset] = unknown_instruction
+        self.file.entities_offsets.append(self.last_offset)
         self.file.unknown_instructions_count += 1
+        self.last_offset = self.cur_offset
         pass
 
     def fixAlignment(self):
@@ -1281,6 +1245,7 @@ class PAC_parser:
             self.file.entities[self.cur_offset] = padding
             self.file.entities_offsets.append(self.cur_offset)
             self.cur_offset += padding_bytes_length
+            self.last_offset += padding_bytes_length
             pass
 
     def processAddressTable(self):
@@ -1293,6 +1258,7 @@ class PAC_parser:
         self.file.entities_offsets.append(self.last_offset)
         self.file.entities[self.last_offset] = table
         self.file.switch_case_tables[self.last_offset] = table
+        self.last_offset = self.cur_offset
 
     def parse(self):
         if self.file.raw_data == b"":
@@ -1303,7 +1269,7 @@ class PAC_parser:
             if res:
                 self.processRawData()
                 # now self.last_offset == self.cur_offset
-                signature = struct.unpack_from("<i", self.file.raw_data, self.cur_offset)[0]
+                signature = struct.unpack_from(">i", self.file.raw_data, self.cur_offset)[0]
                 self.cur_signature = signature
 
                 # self.find_unknown_instructions == False => the else clause is never executed
@@ -1316,6 +1282,130 @@ class PAC_parser:
                 self.cur_offset = self.file.size
                 self.processRawData()
         pass
+
+    def reset(self, file: PAC_file):
+        self.file = file
+        self.cur_offset = 0
+        self.last_offset = 0
+        self.last_was_instruction = False
+        self.cur_signature = 0x0
+
+
+def get_first_difference(path_1: Path, path_2: Path) -> Tuple[int, Tuple[int, int]]:
+    """
+    If the first value is -1, the files are identical; else the value is the first difference offset
+
+    In this case, the second tuple contains the values of bytes at this offset
+
+    :param path_1: first file path
+    :param path_2: second file path
+    :return: a tuple of an int and another tuple of two ints
+    """
+    source_1 = path_1.open(mode="rb").read()
+    source_2 = path_2.open(mode="rb").read()
+    # diff = difflib.Differ()
+    # res = diff.compare(source_1, source_2)
+    data = zip(source_1, source_2)
+    for i, (a, b) in enumerate(data):
+        if a != b:
+            # found first difference
+            return i, (a, b)
+    return -1, (0, 0)
+
+
+class MemoryAccess(NamedTuple):
+    size: int
+    info: str
+    actual_start: int
+    pc: int
+
+
+class MemAccessInfo(NamedTuple):
+    type: str
+    size: int
+    info: str
+    address: int
+    alias: str
+    pc: int
+    fun_name: str
+
+
+def verify_ranges_intersections(sorted_ranges: List[Tuple[int, int]]) -> bool:
+    for i in range(len(sorted_ranges) - 1):
+        start, size = sorted_ranges[i]
+        if size <= 0 or start + size > sorted_ranges[i+1][0]:
+            return False
+    return sorted_ranges[-1][1] > 0
+
+
+class FunctionMemoryAccesses:
+    def __init__(self, name: str):
+        self.name = name
+        # self.PCs: Set[int] = set()
+        self.accesses: Set[MemoryAccess] = set()
+
+
+class MemoryAccessesStats:
+    """
+    Information about all memory accesses on the range
+    """
+    def __init__(self, address: int, size: int):
+        self.address = address
+        self.size = size
+        # offset -> (function name -> all its accesses)
+        self.writes: Dict[int, Dict[str, FunctionMemoryAccesses]] = {}
+        self.reads: Dict[int, Dict[str, FunctionMemoryAccesses]] = {}
+
+
+def create_pattern_file(path: Path, writes: bool, access_stats: MemoryAccessesStats):
+    with open(path, mode="w") as output:
+        # We are going to use either "reads" or "writes" depending on the "writes" argument
+        if writes:
+            dictionary = access_stats.writes
+        else:
+            dictionary = access_stats.reads
+        for offset, func_accesses in dictionary.items():
+            true_offset = offset
+            if offset < 0:
+                offset = 0  # I sure hope true_offset doesn't change here...
+
+            # let's make a dict from size to a set of (who, info, pc)
+            data_regrouped: Dict[int, Set[Tuple[str, str, int]]] = {}
+            for func_name, accesses in func_accesses.items():
+                for access in accesses.accesses:
+                    if access.size not in data_regrouped:
+                        data_regrouped[access.size] = set()
+                    data_regrouped[access.size].add((func_name, access.info, access.pc))
+
+            # let's prepare a label for this offset
+            for size, accesses_info in data_regrouped.items():
+                # let's make a string with the info about how off the access is
+                size //= 8
+                true_size = size
+                out_of_range_comment = ""
+
+                if true_offset < 0 or true_offset + size > access_stats.size:
+                    # either the offset has been adjusted or the access is too big for our range
+                    if true_offset < 0:
+                        # account for the shift of the left border:
+                        size += true_offset
+                    # account for the shift of the right border
+                    size = min(size, access_stats.size)
+                    out_of_range_comment = f"true_offset={hex(true_offset)}, true_size={true_size}, "
+
+                base_line = f"u8 offset_0x{offset:X}[{size}]  @ 0x{offset:X} "
+                base_line += "[[comment(\""
+                # in case the access is actually only partially in our range...
+                base_line += out_of_range_comment
+
+                # let's write a comment now!
+                comment = ""
+                for who, info, pc in accesses_info:
+                    comment += f"({who}, {info}, PC={pc:X}), "
+                base_line += comment.rstrip(", ")
+                base_line += f"\")]];\n"
+                pass
+            output.write(base_line)
 
 
 class PataponDebugger:
@@ -1360,6 +1450,9 @@ class PataponDebugger:
 
         self.current_overlay: str = ""
 
+        self.size_to_PAC: Dict[int, Tuple[bool, str]] = {}
+        self.hash_to_PAC: Dict[str, str] = {}
+
     def read_instruction_set(self, file_path: str):
         # the user expects this operation to change the set
         self.PAC_instruction_templates.clear()
@@ -1394,235 +1487,30 @@ class PataponDebugger:
         # self.ordered_PAC_functions.sort(key=lambda x: x.memory_location)
         self.Eboot_PAC_function_offsets.sort()
 
-    def parse_PAC_file(self, file: PAC_file):
-        # if not self.PAC_instruction_templates:
-        #     raise RuntimeError("Instruction set has not been read beforehand!")
-        if file.raw_data == b"":
-            raise RuntimeError("PAC file raw data is empty!")
-        # let's start!
-        # signature_to_dict: Dict[int, Dict[int, PAC_instruction]] = {}
-        # unk_signature_to_dict: Dict[int, Dict[int, Unknown_PAC_instruction]] = {}
-        offset = 0
-        previous_offset = 0
-        percent = 0x25
-        message_table_found = False
-        while offset < file.size:
-            previous_offset = offset
-            # find 0x25 == %
-            # if offset > 0x2C0B4:
-            #     print("weird part")
-            instruction_found = False
-            while not instruction_found:
-                while offset < file.size and file.raw_data[offset] != percent:
-                    offset += 1
-                # maybe this is not a real instruction...?
-                if offset + 3 < file.size:
-                    # well, there is enough bytes, but we're not satisfied yet
-                    last_bytes = file.raw_data[offset + 2:offset + 4]
-                    if last_bytes[0] != 0 and last_bytes[1] <= 0x23:
-                        # fine...
-                        instruction_found = True
-                    else:
-                        offset += 1
-                else:
-                    # file ends with something like a cut instruction =>
-                    # we need to make it a raw entity and break
-                    raw = file.raw_data[previous_offset:]
-
-                    # if not message_table_found and is_PAC_msg_table(raw):
-                    if is_PAC_msg_table(raw):
-                        msg_table = PAC_message_table()
-                        msg_table.initialize_by_raw_data(raw)
-                        file.msg_tables[previous_offset] = msg_table
-                        file.entities[previous_offset] = msg_table
-                        # message_table_found = True
-                    elif is_left_out_PAC_args(raw) and file.entities_offsets and \
-                            isinstance(file.entities[file.entities_offsets[-1]], PAC_instruction):
-                        # if the last entity was a PAC instruction
-                        instr_offset = file.entities_offsets[-1]
-                        args = Left_out_PAC_arguments(file.raw_data[instr_offset:],
-                                                      previous_offset - instr_offset)
-                        file.left_out_PAC_arguments[previous_offset] = args
-                        file.entities[previous_offset] = args
-                    else:
-                        entity = Memory_entity()
-                        entity.initialize_by_raw_data(raw)
-                        file.raw_entities[previous_offset] = entity
-                        file.entities[previous_offset] = entity
-                    file.entities_offsets.append(previous_offset)
-                    break
-                    # by breaking we leave instruction_found == False
-                    pass
-            # how many bytes have we skipped?
-            if not instruction_found:
-                break
-            skipped_count = offset - previous_offset  # maybe we can dispose of the skipped_count variable...
-            if skipped_count != 0:
-                # This means that there is an unknown memory entity starting at previous_offset
-                # with size == skipped_bytes
-                raw = file.raw_data[previous_offset:offset]
-                # if not message_table_found and is_PAC_msg_table(raw):
-                if is_PAC_msg_table(raw):
-                    msg_table = PAC_message_table()
-                    msg_table.initialize_by_raw_data(raw)
-                    file.msg_tables[previous_offset] = msg_table
-                    file.entities[previous_offset] = msg_table
-                    # message_table_found = True
-                elif is_left_out_PAC_args(raw) and file.entities_offsets and \
-                        isinstance(file.entities[file.entities_offsets[-1]], PAC_instruction):
-                    # if the last entity was a PAC instruction
-                    instr_offset = file.entities_offsets[-1]
-                    args = Left_out_PAC_arguments(file.raw_data[instr_offset:offset], previous_offset - instr_offset)
-                    file.left_out_PAC_arguments[previous_offset] = args
-                    file.entities[previous_offset] = args
-                else:
-                    entity = Memory_entity()
-                    entity.initialize_by_raw_data(raw)
-                    file.raw_entities[previous_offset] = entity
-                    file.entities[previous_offset] = entity
-                file.entities_offsets.append(previous_offset)
-                pass
-            # maybe the file ends with raw data?
-            if offset == file.size:
-                # we are done
-                break
-
-            # now read the signature
-            # maybe we should make a check before trying to access 4 continuous bytes...?
-
-            signature = read_int_from_bytes(file.raw_data, offset, "big")
-
-            # if signature == 0x25004200:
-            #     print("cmd_memset")
-            file.entities_offsets.append(offset)
-            if signature not in self.PAC_instruction_templates.keys():
-                # Unknown instruction
-                # The tool assumes the whole section between this and the next % is related to this instruction
-                self.unknown_PAC_signatures.add(signature)
-                instruction_found = False
-                next_instr_offset = offset + 4
-                while not instruction_found:
-                    while next_instr_offset < file.size and file.raw_data[next_instr_offset] != percent:
-                        next_instr_offset += 1
-                    # maybe this is not a real instruction...?
-                    if next_instr_offset + 3 < file.size:
-                        # well, there is enough bytes, but we're not satisfied yet
-                        last_bytes = file.raw_data[next_instr_offset + 2:next_instr_offset + 4]
-                        if last_bytes[0] != 0 and last_bytes[1] <= 0x23:
-                            # fine...
-                            instruction_found = True
-                        else:
-                            next_instr_offset += 1
-                    else:
-                        # we need to make the whole file suffix a part of this unknown instruction
-                        raw = file.raw_data[offset:]
-                        unknown_instruction = Unknown_PAC_instruction(raw)
-                        if signature not in file.unknown_instructions:
-                            file.unknown_instructions[signature] = {}
-                        file.unknown_instructions[signature][offset] = unknown_instruction
-                        file.entities[offset] = unknown_instruction
-                        file.unknown_instructions_count += 1
-                        break
-                        # by breaking we leave instruction_found == False
-                        pass
-                if not instruction_found:
-                    break
-
-                skipped_count = next_instr_offset - offset
-                raw = file.raw_data[offset:next_instr_offset]
-                unknown_instruction = Unknown_PAC_instruction(raw)
-                if signature not in file.unknown_instructions:
-                    file.unknown_instructions[signature] = {}
-                file.unknown_instructions[signature][offset] = unknown_instruction
-                file.entities[offset] = unknown_instruction
-
-                # The following code is no longer necessary
-                # if next_instr_offset == file.size:
-                #     # This instruction is the last thing in the file so we can break
-                #     break
-                offset += skipped_count  # maybe offset = next_instr_offset ?
-                file.unknown_instructions_count += 1
-            else:
-                # this instruction is known to the tool
-                template = self.PAC_instruction_templates[signature]
-                instruction = PAC_instruction(file.raw_data, offset, template)
-                # add it to the dictionary
-
-                # if signature == 0x25000700:
-                #     print("cmd_mov")
-
-                if signature not in file.instructions:
-                    file.instructions[signature] = {}
-                file.instructions[signature][offset] = instruction
-                file.entities[offset] = instruction
-                file.ordered_instructions[offset] = instruction
-                if instruction.cut_off:
-                    file.cut_instructions[offset] = instruction
-                    file.cut_instructions_count += 1
-                offset += instruction.size
-                file.instructions_count += 1
-
-                if template.PAC_params and template.PAC_params[-1].type == "string":
-                    # alignment might be broken
-                    if offset % 4 != 0:
-                        padding = Padding_bytes(4)
-                        padding_bytes_length = 4 - (offset % 4)
-                        padding_raw = file.raw_data[offset:offset + padding_bytes_length]
-                        padding.initialize_by_raw_data(padding_raw)
-                        file.padding_bytes[offset] = padding
-                        file.entities[offset] = padding
-                        file.entities_offsets.append(offset)
-                        offset += padding_bytes_length
-                        pass
-                    pass
-
-                if self.jump_table_next_to_switch and instruction.signature == self.inxJmp_signature:
-                    previous_offset = offset
-                    instruction_found = False
-                    while not instruction_found:
-                        while offset < file.size and file.raw_data[offset] != percent:
-                            offset += 1
-                        # maybe this is a part of the table?
-                        if offset + 3 < file.size:
-                            # well, there is enough bytes, but we're not satisfied yet
-                            last_bytes = file.raw_data[offset + 2:offset + 4]
-                            if last_bytes[0] != 0 and last_bytes[1] <= 0x23:
-                                # fine...
-                                instruction_found = True
-                            else:
-                                offset += 1
-                        else:
-                            # file ends with something like a cut instruction =>
-                            # we need to make it a raw entity and break
-                            # This is quite contradictory to what we believe is happening, but why not?
-                            raw = file.raw_data[previous_offset:]
-                            entity = Memory_entity()
-                            entity.initialize_by_raw_data(raw)
-                            file.raw_entities[previous_offset] = entity
-                            file.entities_offsets.append(previous_offset)
-                            file.entities[previous_offset] = entity
-                            break
-                            # by breaking we leave instruction_found == False
-                            pass
-                    if not instruction_found:
-                        break
-                    # Else we have found the switch-case table
-                    table = Switch_case_table()
-                    table.initialize_by_raw_data(file.raw_data[previous_offset:offset])
-                    file.entities_offsets.append(previous_offset)
-                    file.entities[previous_offset] = table
-                    file.switch_case_tables[previous_offset] = table
-                pass
-
-        # We need to make a map <signature, map <location, PAC_instruction>>
-        # Prepare dict and initialize FrozenKeysDict with it:
-        # file.instructions.initialize_from_dict(signature_to_dict)
-        # file.unknown_instructions.initialize_from_dict(file.temp_unknown_instructions)
-
-        pass
-
     def initialize_PAC_functions(self):  # so far in testing
         pass
+
+    def prepare_PACs_info(self, directory: Path):
+        sizes: Dict[int, List[str]] = {}
+        for file in directory.glob("*.pac"):
+            # we only want to look at the files
+            if not file.is_file():
+                continue
+            size = file.stat().st_size
+            if size not in sizes:
+                sizes[size] = []
+            sizes[size].append(file.name)
+        # now let's see...
+        for size, names in sizes.items():
+            if len(names) == 1:
+                self.size_to_PAC[size] = (True, names[0])
+                continue
+            # if not, we'll have to compute hashes
+            for name in names:
+                data = (directory / name).open("rb").read()
+                hashed = hashlib.md5(data).hexdigest()
+                self.hash_to_PAC[hashed] = name
+            self.size_to_PAC[size] = (False, "")
 
     def dump_memory(self, address: int, size: int) -> bytes:
         base_address = self.debugger.PPSSPP_base_address
@@ -1903,3 +1791,181 @@ class PataponDebugger:
             self.current_overlay = filename
         else:
             self.current_overlay = ""
+
+    def identify_PAC(self, address: int) -> str:
+        alloc_info_address = self.debugger.memory_read_int(address - 4)
+        file_end = self.debugger.memory_read_int(alloc_info_address)
+        size = file_end - address
+        if size not in self.size_to_PAC:
+            print(f"Fatal error: unrecognized PAC file at address 0x{address:X}!")
+            exit()
+        unique, name = self.size_to_PAC[size]
+        if not unique:
+            # compute the hash
+            data = self.dump_memory(address, size)
+            hashed = hashlib.md5(data).hexdigest()
+            if hashed not in self.hash_to_PAC:
+                print(f"Fatal error: unrecognized PAC file at address 0x{address:X}!")
+                exit()
+            name = self.hash_to_PAC[hashed]
+        # now the name is correct!
+        return name
+
+    def log_struct_accesses(self, address: int, size: int):
+        error = PPSSPPDebugger.const_error_event
+        # CHK Read32(CPU) at 08f08700 ((08f08700)), PC=0892b64c (z_un_0892b644)
+        parser = parse.compile("CHK {:l}{:d}({:w}) at {:x} (({:w})), PC={:x} ({:w})")
+        # test = parser.parse("CHK Read32(CPU) at 08f08700 ((08f08700)), PC=0892b64c (z_un_0892b644)")
+
+        # let's place a memory bp on the range
+        asyncio.run(self.debugger.memory_breakpoint_add(address, size, enabled=False, log=True))
+        # now let's prepare a dict...
+        accesses: Dict[int, Set[MemAccessInfo]] = {}
+        got_log = False
+
+        # now the actual action
+        while True:
+            try:
+                # ret = asyncio.run(self.debugger.block_until_event("cpu.stepping", PPSSPPDebugger.const_error_event))
+                # # how do we know if the stepping occurred due to a memory bp?
+                # reason = ret["reason"]
+                # if reason != "memory.breakpoint":
+                #     asyncio.run(self.debugger.cpu_resume())
+                #     continue
+                # # print("Reason is memory.breakpoint")
+                # code_addresses.add(ret["pc"])
+                # asyncio.run(self.debugger.cpu_resume())
+
+                # if not got_log:
+                #     event = "log"
+                # else:
+                #     event = "cpu.stepping"
+                # ret = asyncio.run(self.debugger.block_until_event(event, error))
+                ret = asyncio.run(self.debugger.block_until_any({"log"}, error))
+                if ret["event"] == "log":
+                    # we can access the field "message" to get the log and parse it
+                    log_message = ret["message"].rstrip()
+                    print(log_message)
+                    parsed = parser.parse(log_message)
+                    if parsed is None:
+                        continue
+
+                    mem_access_info = MemAccessInfo(*parsed.fixed)
+                    addr = mem_access_info.address
+                    # TO DO: identify the range which this access belongs to
+                    # But for now let's suppose that we only have one watchpoint...
+                    # accesses[addr] = mem_access_info
+                    if addr not in accesses:
+                        accesses[addr] = set()
+                    accesses[addr].add(mem_access_info)
+                else:
+                    # Do something here... maybe even nothing later...
+                    asyncio.run(self.debugger.cpu_resume())
+            except KeyboardInterrupt:
+                print("Finishing!")
+                # print(", ".join([f"0x{i:X}" for i in code_addresses]))
+                for addr, access_list in accesses.items():
+                    print(f"0x{addr-address:X}")
+                    lines = [f"{acc.type}{acc.size} by {acc.fun_name} (PC=0x{acc.pc:X})" for acc in access_list]
+                    print("\n".join(lines))
+                break
+            except Exception as e:
+                print("Exception!")
+                print(e)
+
+    def AccessLogger(self, ranges: Set[Tuple[int, int]], path: Path, addr_to_name: Optional[Dict[str, str]] = None):
+        error = PPSSPPDebugger.const_error_event
+        # CHK Read32(CPU) at 08f08700 ((08f08700)), PC=0892b64c (z_un_0892b644)
+        # CHK Write1155072(IoRead/disc0:/PSP_GAME/USRDIR/Overlay/OL_Title.bin offset 0x00000000) at 08abb180
+
+        sorted_ranges = sorted(ranges)
+        if not verify_ranges_intersections(sorted_ranges):
+            print("Ranges intersect, cannot start AccessLogger!")
+            return None
+
+        parser = parse.compile("CHK {:l}{:d}({}) at {:x} (({:w})), PC={:x} ({:w})")
+
+        for address, size in ranges:
+            asyncio.run(self.debugger.memory_breakpoint_add(address, size, enabled=False, log=True))
+        # now let's prepare a dict...
+        accesses: Dict[int, Set[MemAccessInfo]] = {}
+
+        async def AsyncLogger():
+            async with websockets.connect(self.debugger.connection_URI, ping_timeout=None) as ws:
+                while True:
+                    response = json.loads(await ws.recv())
+                    if response["event"] != "log":
+                        continue
+                    log_message = response["message"].rstrip()
+                    # print(log_message)
+                    parsed = parser.parse(log_message)
+                    if parsed is None:
+                        continue
+                    mem_access_info = MemAccessInfo(*parsed.fixed)
+                    addr = mem_access_info.address
+                    if addr not in accesses:
+                        accesses[addr] = set()
+                    accesses[addr].add(mem_access_info)
+
+        try:
+            asyncio.run(AsyncLogger())
+        except (KeyboardInterrupt, Exception) as e:
+            print("Intercepted exception:", end=" ")
+            print(e)
+            print("Finishing!")
+
+            accesses_info: Dict[int, MemoryAccessesStats] = \
+                {address: MemoryAccessesStats(address, size) for address, size in sorted_ranges}
+
+            access_set: Set[MemAccessInfo]
+            for address, access_set in sorted(accesses.items()):
+                # let's see which range is this...
+                index = binary_search_lambda(sorted_ranges, address, key=lambda tup: tup[0])
+
+                # what if this is -1?
+                if index == -1:
+                    # someone accessed the first range, but the start address lies outside of it
+                    range_start = sorted_ranges[0][0]
+                    offset = address - range_start
+                else:
+                    range_start, range_size = sorted_ranges[index]
+                    offset = address - range_start
+                    if offset >= range_size:
+                        # this is not the range that was accessed
+                        range_start = sorted_ranges[index + 1][0]
+                        offset = address - range_start
+
+                # range_start = sorted_ranges[index][0]
+                # offset = address - range_start
+                # print(f"0x{offset:X}")
+
+                # We get the range which the accesses RAM part belongs to
+                access_stats = accesses_info[range_start]
+
+                for access_info in access_set:
+                    # We are going to write to either "reads" or "writes" depending on the "type" field
+                    if access_info.type == "Read":
+                        dictionary = access_stats.reads
+                    else:
+                        dictionary = access_stats.writes
+                    # This dictionary is "offset inside the range -> (dict 'function name -> all its accesses')"
+                    if offset not in dictionary:
+                        dictionary[offset] = {}
+
+                    # Make a replacement if needed
+                    func_name = access_info.fun_name
+                    if access_info.fun_name.startswith("z_un_"):
+                        if access_info.fun_name[5:] in addr_to_name:
+                            func_name = addr_to_name[access_info.fun_name[5:]]
+
+                    if func_name not in dictionary[offset]:
+                        dictionary[offset][func_name] = FunctionMemoryAccesses(func_name)
+                    memory_access = MemoryAccess(access_info.size, access_info.info, offset, access_info.pc)
+                    dictionary[offset][func_name].accesses.add(memory_access)
+
+            print("accesses_info filled!")
+            for address, access_stats in accesses_info.items():
+                reads_path = path / f"{access_stats.address:X}_reads.hexpat"
+                writes_path = path / f"{access_stats.address:X}_writes.hexpat"
+                create_pattern_file(reads_path, False, access_stats)
+                create_pattern_file(writes_path, True, access_stats)
