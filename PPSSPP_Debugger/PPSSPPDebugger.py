@@ -246,6 +246,7 @@ class PPSSPP_Debugger:
     async def memory_base(self):  # unfinished
         event = "memory.base"
         args = API_args(event)
+
         request = str(args)
         return await self.send_request_receive_answer(request, event, const_error_event)
 
@@ -253,475 +254,632 @@ class PPSSPP_Debugger:
         # end is the address after the last one that needs to be disassembled
         # I have no idea how displaySymbols works
         event = "memory.disasm"
-        
-        if thread == "":
-            if count == "":
-                request = make_request_string(event="memory.disasm", address=address, end=end,
-                                              displaySymbols=displaySymbols)
-            else:
-                request = make_request_string(event="memory.disasm", address=address, count=count,
-                                              displaySymbols=displaySymbols)
-                # Test:
-                # request = make_request_string(event="memory.disasm", address=address, count=count)
+        args = API_args(event)
+        args.add(address=address, displaySymbols=displaySymbols)
+        if count == "":
+            args.add(end=end)
         else:
-            if count == "":
-                request = make_request_string(event="memory.disasm", thread=thread, address=address, end=end,
-                                              displaySymbols=displaySymbols)
-            else:
-                request = make_request_string(event="memory.disasm", thread=thread, address=address, count=count,
-                                              displaySymbols=displaySymbols)
+            args.add(count=count)
 
-        return await self.send_request_receive_answer(request, "memory.disasm", const_error_event)
+        if thread != "":
+            args.add(thread=thread)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def memory_searchDisasm(self, address: int, match: str, thread="", end="", displaySymbols=True):  # unfinished
-        if thread == "":
-            request = make_request_string(event="memory.searchDisasm", address=address, end=end, match=match,
-                                          displaySymbols=displaySymbols)
-        else:
-            request = make_request_string(event="memory.searchDisasm", thread=thread, address=address, end=end,
-                                          match=match, displaySymbols=displaySymbols)
+        event = "memory.searchDisasm"
+        args = API_args(event)
+        args.add(address=address, end=end, match=match, displaySymbols=displaySymbols)
 
-        return await self.send_request_receive_answer(request, "memory.searchDisasm", const_error_event)
+        if thread != "":
+            args.add(thread=thread)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def memory_assemble(self, address: int, code: str):  # unfinished
-        # doesn't work either
-        request = make_request_string(event="memory.assemble", address=address, code=code)
+        event = "memory.assemble"
+        args = API_args(event)
+        args.add(address=address, code=code)
 
-        return await self.send_request_receive_answer(request, "memory.assemble", const_error_event)
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def cpu_stepping(self):  # unfinished
-        request = make_request_string(event="cpu.stepping")
+        event = "cpu.stepping"
+        args = API_args(event)
 
-        return await self.send_request_receive_answer(request, "cpu.stepping", const_error_event)
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def cpu_resume(self):  # unfinished
-        request = make_request_string(event="cpu.resume")
+        event = "cpu.resume"
+        args = API_args(event)
 
-        return await self.send_request_receive_answer(request, "cpu.resume", const_error_event)
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def cpu_status(self):  # unfinished
-        request = make_request_string(event="cpu.status")
+        event = "cpu.status"
+        args = API_args(event)
 
-        return await self.send_request_receive_answer(request, "cpu.status", const_error_event)
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def cpu_getAllRegs(self, thread=""):  # unfinished
-        if thread == "":
-            request = make_request_string(event="cpu.getAllRegs")
-        else:
-            request = make_request_string(event="cpu.getAllRegs", thread=thread)
+        event = "cpu.getAllRegs"
+        args = API_args(event)
+        if thread != "":
+            args.add(thread=thread)
 
-        return await self.send_request_receive_answer(request, "cpu.getAllRegs", const_error_event)
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def cpu_getReg(self, name: str, thread="", category="", register=""):  # unfinished
         # But how do we implement a call by category and register index?
         # Maybe we should add an optional pair of parameters for this method and
         # prompt users to use an empty string as name when they use the second way to call it?
+        event = "cpu.getReg"
+        args = API_args(event)
 
-        if thread == "":
-            if name == "":
-                request = make_request_string(event="cpu.getReg", category=category, register=register)
-            else:
-                request = make_request_string(event="cpu.getReg", name=name)
+        if thread != "":
+            args.add(thread=thread)
+        if name != "":
+            args.add(name=name)
         else:
-            if name == "":
-                request = make_request_string(event="cpu.getReg", thread=thread, category=category, register=register)
-            else:
-                request = make_request_string(event="cpu.getReg", thread=thread, name=name)
+            args.add(category=category, register=register)
 
-        return await self.send_request_receive_answer(request, "cpu.getReg", const_error_event)
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def cpu_setReg(self, name: str, value: Union[int, str], thread="", category="", register=""):  # unfinished
-        if thread == "":
-            if name == "":
-                request = make_request_string(event="cpu.setReg", category=category,
-                                              register=register, value=value)
-            else:
-                request = make_request_string(event="cpu.setReg", name=name, value=value)
-        else:
-            if name == "":
-                request = make_request_string(event="cpu.setReg", thread=thread, category=category,
-                                              register=register, value=value)
-            else:
-                request = make_request_string(event="cpu.setReg", thread=thread, name=name, value=value)
+        event = "cpu.setReg"
+        args = API_args(event)
 
-        return await self.send_request_receive_answer(request, "cpu.setReg", const_error_event)
+        args.add(value=value)
+        if thread != "":
+            args.add(thread=thread)
+        if name != "":
+            args.add(name=name)
+        else:
+            args.add(category=category, register=register)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def cpu_evaluate(self, expression: str, thread=""):  # unfinished
         # don't use curly brackets to access a register
         # now [address, size] works smoothly all of a sudden!
         # even [reg_name, size] works! ... Maybe...
-        if thread == "":
-            request = make_request_string(event="cpu.evaluate", expression=expression)
-        else:
-            request = make_request_string(event="cpu.evaluate", thread=thread, expression=expression)
+        event = "cpu.evaluate"
+        args = API_args(event)
 
-        return await self.send_request_receive_answer(request, "cpu.evaluate", const_error_event)
+        args.add(expression=expression)
+        if thread != "":
+            args.add(thread=thread)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def cpu_breakpoint_add(self, address: int, enabled=True, log=False, condition="", logFormat=""):  # unfinished
-        request = make_request_string(event="cpu.breakpoint.add", address=address, enabled=enabled,
-                                      log=log, condition=condition, logFormat=logFormat)
+        event = "cpu.breakpoint.add"
+        args = API_args(event)
+        args.add(address=address, enabled=enabled, log=log, condition=condition, logFormat=logFormat)
 
-        return await self.send_request_receive_answer(request, "cpu.breakpoint.add", const_error_event)
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def cpu_breakpoint_update(self, address: int, enabled=True, log=False, condition="", logFormat=""):  # unfinished
-        request = make_request_string(event="cpu.breakpoint.update", address=address, enabled=enabled,
-                                      log=log, condition=condition, logFormat=logFormat)
+        event = "cpu.breakpoint.update"
+        args = API_args(event)
+        args.add(address=address, enabled=enabled, log=log, condition=condition, logFormat=logFormat)
 
-        return await self.send_request_receive_answer(request, "cpu.breakpoint.update", const_error_event)
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def cpu_breakpoint_remove(self, address: int):  # unfinished
-        request = make_request_string(event="cpu.breakpoint.remove", address=address)
+        event = "cpu.breakpoint.remove"
+        args = API_args(event)
+        args.add(address=address)
 
-        return await self.send_request_receive_answer(request, "cpu.breakpoint.remove", const_error_event)
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def cpu_breakpoint_list(self):  # unfinished
-        request = make_request_string(event="cpu.breakpoint.list")
+        event = "cpu.breakpoint.list"
+        args = API_args(event)
 
-        return await self.send_request_receive_answer(request, "cpu.breakpoint.list", const_error_event)
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def memory_breakpoint_add(self, address: int, size: int, enabled=True, log=False, read=True,
                                     write=True, change=False, logFormat=""):  # unfinished
-        # if either of read, write or change parameters is present, others must also be included
-        request = make_request_string(event="memory.breakpoint.add", address=address, size=size, enabled=enabled,
-                                      log=log, read=read, write=write, change=change, logFormat=logFormat)
+        # If either of read, write or change parameters is present, others must also be included
+        event = "memory.breakpoint.add"
+        args = API_args(event)
+        args.add(address=address, size=size, enabled=enabled, log=log, read=read, write=write,
+                 change=change, logFormat=logFormat)
 
-        return await self.send_request_receive_answer(request, "memory.breakpoint.add", const_error_event)
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def memory_breakpoint_update(self, address: int, size: int, enabled=True, log=False, read=True,
                                        write=True, change=False, logFormat=""):  # unfinished
-        request = make_request_string(event="memory.breakpoint.update", address=address, size=size, enabled=enabled,
+        event = "memory.breakpoint.update"
+        args = API_args(event)
+        request = make_request_string(address=address, size=size, enabled=enabled,
                                       log=log, read=read, write=write, change=change, logFormat=logFormat)
-
-        return await self.send_request_receive_answer(request, "memory.breakpoint.update", const_error_event)
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def memory_breakpoint_remove(self, address: int, size: int):  # unfinished
-        request = make_request_string(event="memory.breakpoint.remove", address=address, size=size)
+        event = "memory.breakpoint.remove"
+        args = API_args(event)
+        args.add(address=address, size=size)
 
-        return await self.send_request_receive_answer(request, "memory.breakpoint.remove", const_error_event)
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def memory_breakpoint_list(self):  # unfinished
-        request = make_request_string(event="memory.breakpoint.list")
+        event = "memory.breakpoint.list"
+        args = API_args(event)
 
-        return await self.send_request_receive_answer(request, "memory.breakpoint.list", const_error_event)
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     # GPU section
 
     async def gpu_buffer_screenshot(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+        event = "memory.base"
+        args = API_args(event)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def gpu_buffer_renderColor(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+        event = "memory.base"
+        args = API_args(event)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def gpu_buffer_renderDepth(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+        event = "memory.base"
+        args = API_args(event)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def gpu_buffer_renderStencil(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+        event = "memory.base"
+        args = API_args(event)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def gpu_buffer_texture(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+        event = "memory.base"
+        args = API_args(event)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def gpu_buffer_clut(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+        event = "memory.base"
+        args = API_args(event)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def gpu_record_dump(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+        event = "memory.base"
+        args = API_args(event)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def gpu_stats_get(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+        event = "memory.base"
+        args = API_args(event)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def gpu_stats_feed(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+        event = "memory.base"
+        args = API_args(event)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     # GPU section end
 
     async def game_reset(self, break_=False):  # unfinished
-        # game must be running
-        # doesn't work on v1.11.3, crashes v1.12.3
-        request = make_request_string(event="game.reset")
+        # Game must be running
+        # Doesn't work on v1.11.3, crashes v1.12.3
+        event = "game.reset"
+        args = API_args(event)
 
-        return await self.send_request_receive_answer(request, "game.reset", const_error_event)
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def game_status(self):  # unfinished
         # "paused" = screen where you can load states
-        request = make_request_string(event="game.status")
+        event = "game.status"
+        args = API_args(event)
 
-        return await self.send_request_receive_answer(request, "game.status", const_error_event)
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def version(self):  # unfinished
-        request = make_request_string(event="version")
+        event = "version"
+        args = API_args(event)
 
-        return await self.send_request_receive_answer(request, "version", const_error_event)
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     # HLE section
 
     async def hle_thread_list(self):  # unfinished
-        request = make_request_string(event="hle.thread.list")
-        return await self.send_request_receive_answer(request, "hle.thread.list", const_error_event)
+        event = "hle.thread.list"
+        args = API_args(event)
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def hle_thread_wake(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+        event = "memory.base"
+        args = API_args(event)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def hle_thread_stop(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+        event = "memory.base"
+        args = API_args(event)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def hle_func_list(self):  # unfinished
-        request = make_request_string(event="hle.func.list")
-        return await self.send_request_receive_answer(request, "hle.func.list", const_error_event)
+        event = "hle.func.list"
+        args = API_args(event)
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def hle_func_add(self, address: int, size: int = -1, name: Optional[str] = None):  # unfinished
-        if size == -1:
-            if name is None:
-                request = make_request_string(event="hle.func.add", address=address)
-            else:
-                request = make_request_string(event="hle.func.add", address=address, name=name)
-        else:
-            if name is None:
-                request = make_request_string(event="hle.func.add", address=address, size=size)
-            else:
-                request = make_request_string(event="hle.func.add", address=address, size=size, name=name)
+        event = "hle.func.add"
+        args = API_args(event)
+        args.add(address=address)
+        if size != -1:
+            args.add(size=size)
+        if name is not None:
+            args.add(name=name)
 
-        return await self.send_request_receive_answer(request, "hle.func.add", const_error_event)
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def hle_func_remove(self, address: int):  # unfinished
-        request = make_request_string(event="hle.func.remove", address=address)
-        return await self.send_request_receive_answer(request, "hle.func.remove", const_error_event)
+        event = "hle.func.remove"
+        args = API_args(event)
+        args.add(address=address)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def hle_func_removeRange(self, address: int, size: int):  # unfinished
-        request = make_request_string(event="hle.func.removeRange", address=address, size=size)
-        return await self.send_request_receive_answer(request, "hle.func.removeRange", const_error_event)
+        event = "hle.func.removeRange"
+        args = API_args(event)
+        args.add(address=address, size=size)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def hle_func_rename(self, address: int, name: str):  # unfinished
-        request = make_request_string(event="hle.func.rename", address=address, name=name)
-        return await self.send_request_receive_answer(request, "hle.func.rename", const_error_event)
+        event = "hle.func.rename"
+        args = API_args(event)
+        args.add(address=address, name=name)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def hle_func_scan(self, address: int, size: int, recreate: bool = False):  # unfinished
-        request = make_request_string(event="hle.func.scan", address=address, size=size, recreate=recreate)
-        return await self.send_request_receive_answer(request, "hle.func.scan", const_error_event)
+        event = "hle.func.scan"
+        args = API_args(event)
+        args.add(address=address, size=size, recreate=recreate)
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def hle_module_list(self):  # unfinished
-        request = make_request_string(event="hle.module.list")
-        return await self.send_request_receive_answer(request, "hle.module.list", const_error_event)
+        event = "hle.module.list"
+        args = API_args(event)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def hle_backtrace(self, thread=""):  # unfinished
-        if thread == "":
-            request = make_request_string(event="hle.backtrace")
-        else:
-            request = make_request_string(event="hle.backtrace", thread=thread)
-        return await self.send_request_receive_answer(request, "hle.backtrace", const_error_event)
+        event = "hle.backtrace"
+        args = API_args(event)
+        if thread != "":
+            args.add(thread=thread)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     # HLE section end
 
     # Input section
 
     async def input_buttons_send(self, **kwargs):  # unfinished
-        request = make_request_string(event="input.buttons.send", buttons=kwargs)
-        return await self.send_request_receive_answer(request, "input.buttons.send", const_error_event)
+        event = "input.buttons.send"
+        args = API_args(event)
+        args.add(buttons=kwargs)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def input_buttons_press(self, button: str, duration=1):  # unfinished
-        request = make_request_string(event="input.buttons.press", button=button, duration=duration)
-        return await self.send_request_receive_answer(request, "input.buttons.press", const_error_event)
+        event = "input.buttons.press"
+        args = API_args(event)
+        args.add(button=button, duration=duration)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def input_analog_send(self, x: float, y: float, stick: Optional[str] = "left"):  # unfinished
         if abs(x) > 1 or abs(y) > 1:
             raise AssertionError("Arguments 'x' and 'y' must be from -1.0 to 1.0")
-        request = make_request_string(event="input.analog.send", x=x, y=y, stick=stick)
-        return await self.send_request_receive_answer(request, "input.analog.send", const_error_event)
+
+        event = "input.analog.send"
+        args = API_args(event)
+        args.add(x=x, y=y, stick=stick)
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     # Input section end
 
     # Memory access section
 
     async def memory_mapping(self):  # unfinished
-        request = make_request_string(event="memory.mapping")
-        return await self.send_request_receive_answer(request, "memory.mapping", const_error_event)
+        event = "memory.mapping"
+        args = API_args(event)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def memory_info_config(self, detailed: Optional[bool] = None):  # unfinished
-        if detailed is None:
-            request = make_request_string(event="memory.info.config")
-        else:
-            request = make_request_string(event="memory.info.config", detailed=detailed)
-        return await self.send_request_receive_answer(request, "memory.info.config", const_error_event)
+        event = "memory.info.config"
+        args = API_args(event)
+        if detailed is not None:
+            args.add(detailed=detailed)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def memory_info_set(self, address: int, size: int, type: str, tag: str, pc: Optional[int] = None):
-        # unfinished
-        if pc is None:
-            request = make_request_string(
-                event="memory.info.set", address=address, size=size, type=type, tag=tag
-            )
-        else:
-            request = make_request_string(
-                event="memory.info.set", address=address, size=size, type=type, tag=tag, pc=pc
-            )
-        return await self.send_request_receive_answer(request, "memory.info.set", const_error_event)
+        event = "memory.info.set"
+        args = API_args(event)
+        args.add(address=address, size=size, type=type)
+
+        if pc is not None:
+            args.add(pc=pc)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def memory_info_list(self, address: int, size: int, type: str):  # unfinished
-        request = make_request_string(event="memory.info.list", address=address, size=size, type=type)
-        return await self.send_request_receive_answer(request, "memory.info.list", const_error_event)
+        event = "memory.info.list"
+        args = API_args(event)
+        args.add(address=address, size=size, type=type)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def memory_info_search(self, match: str, address: Optional[int] = None, end: Optional[int] = None,
                                  type: Optional[str] = None):  # unfinished
-        if type is None:
-            if address is None:
-                if end is None:
-                    raise AssertionError("Both parameters 'address' and 'end' are omitted")
-                request = make_request_string(
-                    event="memory.info.search", end=end, match=match
-                )
-            else:
-                if end is None:
-                    request = make_request_string(
-                        event="memory.info.search", address=address, match=match
-                    )
-                else:
-                    request = make_request_string(
-                        event="memory.info.search", address=address, end=end, match=match
-                    )
-        else:
-            if address is None:
-                if end is None:
-                    raise AssertionError("Both parameters 'address' and 'end' are omitted")
-                request = make_request_string(
-                    event="memory.info.search", end=end, match=match, type=type
-                )
-            else:
-                if end is None:
-                    request = make_request_string(
-                        event="memory.info.search", address=address, match=match, type=type
-                    )
-                else:
-                    request = make_request_string(
-                        event="memory.info.search", address=address, end=end, match=match, type=type
-                    )
-        return await self.send_request_receive_answer(request, "memory.info.search", const_error_event)
+        event = "memory.info.search"
+        args = API_args(event)
+        args.add(match=match)
+        if type is not None:
+            args.add(type=type)
+
+        if address is None and end is None:
+            raise AssertionError("Both parameters 'address' and 'end' are omitted")
+
+        if address is not None:
+            args.add(address=address)
+
+        if end is not None:
+            args.add(end=end)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def memory_read_u8(self, address: int):  # unfinished
-        request = make_request_string(event="memory.read_u8", address=address)
-        return await self.send_request_receive_answer(request, "memory.read_u8", const_error_event)
+        event = "memory.read_u8"
+        args = API_args(event)
+        args.add(address=address)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def memory_read_u16(self, address: int):  # unfinished
-        request = make_request_string(event="memory.read_u16", address=address)
-        return await self.send_request_receive_answer(request, "memory.read_u16", const_error_event)
+        event = "memory.read_u16"
+        args = API_args(event)
+        args.add(address=address)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def memory_read_u32(self, address: int):  # unfinished
-        request = make_request_string(event="memory.read_u32", address=address)
-        return await self.send_request_receive_answer(request, "memory.read_u32", const_error_event)
+        event = "memory.read_u32"
+        args = API_args(event)
+        args.add(address=address)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def memory_read(self, address: int, size: int, replacements=False):  # unfinished
         # What should the default parameter be equal to? TO DO: check PPSSPP code!
         # I also didn't quite understand what it does exactly...
-        request = make_request_string(event="memory.read", address=address, size=size, replacements=replacements)
-        return await self.send_request_receive_answer(request, "memory.read", const_error_event)
+        event = "memory.read"
+        args = API_args(event)
+        args.add(address=address, size=size, replacements=replacements)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def memory_readString(self, address: int, type="utf-8"):  # unfinished
-        request = make_request_string(event="memory.readString", address=address, type=type)
-        return await self.send_request_receive_answer(request, "memory.readString", const_error_event)
+        event = "memory.readString"
+        args = API_args(event)
+        args.add(address=address, type=type)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def memory_write_u8(self, address: int, value: int):  # unfinished
-        request = make_request_string(event="memory.write_u8", address=address, value=value)
-        return await self.send_request_receive_answer(request, "memory.write_u8", const_error_event)
+        event = "memory.write_u8"
+        args = API_args(event)
+        args.add(address=address, value=value)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def memory_write_u16(self, address: int, value: int):  # unfinished
-        request = make_request_string(event="memory.write_u16", address=address, value=value)
-        return await self.send_request_receive_answer(request, "memory.write_u16", const_error_event)
+        event = "memory.write_u16"
+        args = API_args(event)
+        args.add(address=address, value=value)
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def memory_write_u32(self, address: int, value: int):  # unfinished
-        request = make_request_string(event="memory.write_u32", address=address, value=value)
-        return await self.send_request_receive_answer(request, "memory.write_u32", const_error_event)
+        event = "memory.write_u32"
+        args = API_args(event)
+        args.add(address=address, value=value)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def memory_write(self, address: int, base64: str):  # unfinished
         # This bad because the base64 object is a string for it to be normally put into JSON
-        request = make_request_string(event="memory.write", address=address, base64=base64)
-        return await self.send_request_receive_answer(request, "memory.write", const_error_event)
+        event = "memory.write"
+        args = API_args(event)
+        args.add(address=address, base64=base64)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     # Memory section end
 
     # Replay section
 
     async def replay_begin(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+        event = "memory.base"
+        args = API_args(event)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def replay_abort(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+        event = "memory.base"
+        args = API_args(event)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def replay_flush(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+        event = "memory.base"
+        args = API_args(event)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def replay_execute(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+        event = "memory.base"
+        args = API_args(event)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def replay_status(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+        event = "memory.base"
+        args = API_args(event)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def replay_time_get(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+        event = "memory.base"
+        args = API_args(event)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def replay_time_set(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+        event = "memory.base"
+        args = API_args(event)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     # Replay section end
 
     async def cpu_stepInto(self, thread=""):  # unfinished
-        if thread == "":
-            request = make_request_string(event="cpu.stepInto")
-        else:
-            request = make_request_string(event="cpu.stepInto", thread=thread)
+        await_event = "cpu.stepping"
+        event = "cpu.stepInto"
+        args = API_args(event)
+        if thread != "":
+            args.add(thread=thread)
 
-        return await self.send_request_receive_answer(request, "cpu.stepping", const_error_event)
+        request = str(args)
+        return await self.send_request_receive_answer(request, await_event, const_error_event)
 
     async def cpu_stepOver(self, thread=""):  # unfinished
         # PC == jal instruction => skips the next instruction, use stepInto and then stepOver to check it
         # After playing with stepInto and stepOver I broke PPSSPP v1.11.3. Exercise caution.
-        if thread == "":
-            request = make_request_string(event="cpu.stepOver")
-        else:
-            request = make_request_string(event="cpu.stepOver", thread=thread)
+        await_event = "cpu.stepping"
+        event = "cpu.stepOver"
+        args = API_args(event)
+        if thread != "":
+            args.add(thread=thread)
 
-        return await self.send_request_receive_answer(request, "cpu.stepping", const_error_event)
+        request = str(args)
+        return await self.send_request_receive_answer(request, await_event, const_error_event)
 
     async def cpu_stepOut(self, thread=""):  # unfinished
-        if thread == "":
-            request = make_request_string(event="cpu.stepOut")
-        else:
-            request = make_request_string(event="cpu.stepOut", thread=thread)
+        await_event = "cpu.stepping"
+        event = "cpu.stepOut"
+        args = API_args(event)
+        if thread != "":
+            args.add(thread=thread)
+        request = str(args)
 
-        return await self.send_request_receive_answer(request, "cpu.stepping", const_error_event)
+        return await self.send_request_receive_answer(request, await_event, const_error_event)
 
     async def cpu_runUntil(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+        event = "memory.base"
+        args = API_args(event)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def cpu_nextHLE(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+        event = "memory.base"
+        args = API_args(event)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def cpu_startLogging(self, filename: Optional[str] = None):
+        event = "cpu.startLogging"
+        args = API_args(event)
         if filename is not None:
-            request = make_request_string(event="cpu.startLogging", filename=filename)
-        else:
-            request = make_request_string(event="cpu.startLogging")
-        return await self.send_request_receive_answer(request, "cpu.startLogging", const_error_event)
+            args.add(filename=filename)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def cpu_flushLogs(self, filename: Optional[str] = None):
-        # request = make_request_string(event="cpu.flushLogs")
         event = "cpu.flushLogs"
         args = API_args(event)
         if filename is not None:
@@ -731,35 +889,60 @@ class PPSSPP_Debugger:
         return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def cpu_getLoggingSettings(self):
-        request = make_request_string(event="cpu.getLoggingSettings")
-        return await self.send_request_receive_answer(request, "cpu.getLoggingSettings", const_error_event)
+        event = "cpu.getLoggingSettings"
+        args = API_args(event)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def cpu_getLoggingForbiddenRanges(self):
-        request = make_request_string(event="cpu.getLoggingForbiddenRanges")
-        return await self.send_request_receive_answer(request, "cpu.getLoggingForbiddenRanges", const_error_event)
+        event = "cpu.getLoggingForbiddenRanges"
+        args = API_args(event)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def cpu_loggerForbidRange(self, start: int, size: int):
-        request = make_request_string(event="cpu.loggerForbidRange", start=start, size=size)
-        return await self.send_request_receive_answer(request, "cpu.loggerForbidRange", const_error_event)
+        event = "cpu.loggerForbidRange"
+        args = API_args(event)
+        args.add(start=start, size=size)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def cpu_loggerAllowRange(self, start: int, size: int):
-        request = make_request_string(event="cpu.loggerAllowRange", start=start, size=size)
-        return await self.send_request_receive_answer(request, "cpu.loggerAllowRange", const_error_event)
+        event = "cpu.loggerAllowRange"
+        args = API_args(event)
+        args.add(start=start, size=size)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def cpu_loggerUpdateInfo(self, address: int, log_info: Optional[str] = None):
+        event = "cpu.loggerUpdateInfo"
+        args = API_args(event)
+        args.add(address=address)
+
         if log_info is not None:
-            request = make_request_string(event="cpu.loggerUpdateInfo", address=address, log_info=log_info)
-        else:
-            request = make_request_string(event="cpu.loggerUpdateInfo", address=address)
-        return await self.send_request_receive_answer(request, "cpu.loggerUpdateInfo", const_error_event)
+            args.add(log_info=log_info)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def cpu_getLoggerInfo(self):
-        request = make_request_string(event="cpu.getLoggerInfo")
-        return await self.send_request_receive_answer(request, "cpu.getLoggerInfo", const_error_event)
+        event = "cpu.getLoggerInfo"
+        args = API_args(event)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def cpu_getLoggerInfoAt(self, address: int):
-        request = make_request_string(event="cpu.getLoggerInfoAt", address=address)
-        return await self.send_request_receive_answer(request, "cpu.getLoggerInfoAt", const_error_event)
+        event = "cpu.getLoggerInfoAt"
+        args = API_args(event)
+        args.add(address=address)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def cpu_updateLoggerSettings(self, mode=None, maxCount=None, flushWhenFull=None,
                                        ignoreForbiddenWhenRecording=None, lastLinesCount=None):
@@ -779,6 +962,7 @@ class PPSSPP_Debugger:
             args.add(ignoreForbiddenWhenRecording=ignoreForbiddenWhenRecording)
         if lastLinesCount is not None:
             args.add(lastLinesCount=lastLinesCount)
+
         request = str(args)
         return await self.send_request_receive_answer(request, event, const_error_event)
 
