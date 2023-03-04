@@ -7,7 +7,7 @@ import websockets
 import requests
 import json
 import ipaddress
-from typing import Union, Optional, Set
+from typing import Union, Optional, Set, Dict, Tuple, Any
 
 
 class PPSSPP_bitness(enum.Enum):
@@ -58,22 +58,23 @@ class DebuggerRequest(enum.Enum):
     hle_func_list = 34  # needs exception support
     hle_func_add = 35  # needs exception support
     hle_func_remove = 36  # needs exception support
-    hle_func_rename = 37
+    hle_func_rename = 37  # needs exception support
     hle_func_scan = 69   # needs exception support
     hle_module_list = 38  # needs exception support
     hle_backtrace = 39  # needs exception support
 
     # Input section
-    input_buttons_send = 40
-    input_buttons_press = 41
+    input_buttons_send = 40  # needs exception support
+    input_buttons_press = 41  # needs exception support
     input_analog_send = 42
 
-    # Memory access section
-    memory_mapping = 43
-    memory_info_config = 44
-    memory_info_set = 45
-    memory_info_list = 46
+    memory_mapping = 43  # needs exception support
+    memory_info_config = 44  # needs exception support
+    memory_info_set = 45  # needs exception support
+    memory_info_list = 46  # needs exception support
     memory_info_search = 47
+
+    # Memory access section
     memory_read_u8 = 48  # needs exception support
     memory_read_u16 = 49  # needs exception support
     memory_read_u32 = 50  # needs exception support
@@ -102,11 +103,26 @@ class DebuggerRequest(enum.Enum):
     cpu_nextHLE = 68
 
 
+# Technically speaking, there are 4 process names
 const_32_bit_process_name = "PPSSPPWindows.exe"
-const_64_bit_process_name = "PPSSPPWindows64.exe"
+# const_64_bit_process_name = "PPSSPPWindows64.exe"
+const_64_bit_process_name = "PPSSPPDebug64.exe"
 const_PPSSPP_match_list_url = "http://report.ppsspp.org/match/list"
 const_PPSSPP_connection_base = "ws://{0}:{1}/debugger"
 const_error_event = "error"
+
+
+class API_args:
+    def __init__(self, event: str):
+        self._args: dict = {"event": event}
+
+    def add(self, *, name: Optional[str] = None, value: Optional[Any] = None, **kwargs):
+        if (name is not None) and (value is not None):
+            self._args[name] = value
+        self._args.update(kwargs)
+
+    def __str__(self):
+        return json.dumps(self._args)
 
 
 def make_request_string(**kwargs):
@@ -141,6 +157,7 @@ def get_IPV4_from_server(ppsspp_match_url) -> str:
                 if isinstance(ipaddress.ip_address(entry["ip"]), ipaddress.IPv4Address):
                     return const_PPSSPP_connection_base.format(entry["ip"], entry["p"])
             except ValueError:
+                # If the constructor fails, we don't reach the return statement
                 pass
     raise RuntimeError("Error! Server did not return a valid IPv4 address")
 
@@ -149,11 +166,15 @@ def prepare_URI(ppsspp_match_url: str, port=-1) -> str:
     # we try to check localhost URI
     if port != -1:
         try:
-            return asyncio.run(test_localhost_URI(port))
+            ret = asyncio.run(test_localhost_URI(port))
+            print("Success!")
+            return ret
         except Exception:
             print(f"Unable to use {port = }")
-    # if we fail, we try to reach out to server
-    return get_IPV4_from_server(ppsspp_match_url)
+    # If we fail, we try to reach out to the server
+    ret = get_IPV4_from_server(ppsspp_match_url)
+    print("Using server URI:", ret)
+    return ret
 
 
 # This will be a class that will be used to make calls to PPSSPP
@@ -167,13 +188,16 @@ class PPSSPP_Debugger:
     def __init__(self):
         pass
 
-    def initialize_Pymem(self, version):  # should be surrounded by try except
+    def initialize_Pymem(self, version):  # should be surrounded by try except or not
         self.emulator_version = version
         if version == PPSSPP_bitness.bitness_32:
             self.process = const_32_bit_process_name
         else:
             self.process = const_64_bit_process_name
-        self.memory = Pymem(self.process)
+        try:
+            self.memory = Pymem(self.process)
+        except Exception as e:
+            print("Pymem initialization error:", e)
 
     def initialize_URI(self, port=-1):  # should be surrounded by try except
         URI = prepare_URI(const_PPSSPP_match_list_url, port)
@@ -220,12 +244,16 @@ class PPSSPP_Debugger:
     # Debugger events
 
     async def memory_base(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+        event = "memory.base"
+        args = API_args(event)
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def memory_disasm(self, address: int, count: int, end, thread="", displaySymbols=True):  # unfinished
         # end is the address after the last one that needs to be disassembled
         # I have no idea how displaySymbols works
+        event = "memory.disasm"
+        
         if thread == "":
             if count == "":
                 request = make_request_string(event="memory.disasm", address=address, end=end,
@@ -497,41 +525,86 @@ class PPSSPP_Debugger:
 
     # Input section
 
-    async def input_buttons_send(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+    async def input_buttons_send(self, **kwargs):  # unfinished
+        request = make_request_string(event="input.buttons.send", buttons=kwargs)
+        return await self.send_request_receive_answer(request, "input.buttons.send", const_error_event)
 
     async def input_buttons_press(self, button: str, duration=1):  # unfinished
         request = make_request_string(event="input.buttons.press", button=button, duration=duration)
         return await self.send_request_receive_answer(request, "input.buttons.press", const_error_event)
 
-    async def input_analog_send(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+    async def input_analog_send(self, x: float, y: float, stick: Optional[str] = "left"):  # unfinished
+        if abs(x) > 1 or abs(y) > 1:
+            raise AssertionError("Arguments 'x' and 'y' must be from -1.0 to 1.0")
+        request = make_request_string(event="input.analog.send", x=x, y=y, stick=stick)
+        return await self.send_request_receive_answer(request, "input.analog.send", const_error_event)
 
     # Input section end
 
     # Memory access section
 
     async def memory_mapping(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+        request = make_request_string(event="memory.mapping")
+        return await self.send_request_receive_answer(request, "memory.mapping", const_error_event)
 
-    async def memory_info_config(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+    async def memory_info_config(self, detailed: Optional[bool] = None):  # unfinished
+        if detailed is None:
+            request = make_request_string(event="memory.info.config")
+        else:
+            request = make_request_string(event="memory.info.config", detailed=detailed)
+        return await self.send_request_receive_answer(request, "memory.info.config", const_error_event)
 
-    async def memory_info_set(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+    async def memory_info_set(self, address: int, size: int, type: str, tag: str, pc: Optional[int] = None):
+        # unfinished
+        if pc is None:
+            request = make_request_string(
+                event="memory.info.set", address=address, size=size, type=type, tag=tag
+            )
+        else:
+            request = make_request_string(
+                event="memory.info.set", address=address, size=size, type=type, tag=tag, pc=pc
+            )
+        return await self.send_request_receive_answer(request, "memory.info.set", const_error_event)
 
-    async def memory_info_list(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+    async def memory_info_list(self, address: int, size: int, type: str):  # unfinished
+        request = make_request_string(event="memory.info.list", address=address, size=size, type=type)
+        return await self.send_request_receive_answer(request, "memory.info.list", const_error_event)
 
-    async def memory_info_search(self):  # unfinished
-        request = make_request_string(event="memory.base")
-        return await self.send_request_receive_answer(request, "memory.base", const_error_event)
+    async def memory_info_search(self, match: str, address: Optional[int] = None, end: Optional[int] = None,
+                                 type: Optional[str] = None):  # unfinished
+        if type is None:
+            if address is None:
+                if end is None:
+                    raise AssertionError("Both parameters 'address' and 'end' are omitted")
+                request = make_request_string(
+                    event="memory.info.search", end=end, match=match
+                )
+            else:
+                if end is None:
+                    request = make_request_string(
+                        event="memory.info.search", address=address, match=match
+                    )
+                else:
+                    request = make_request_string(
+                        event="memory.info.search", address=address, end=end, match=match
+                    )
+        else:
+            if address is None:
+                if end is None:
+                    raise AssertionError("Both parameters 'address' and 'end' are omitted")
+                request = make_request_string(
+                    event="memory.info.search", end=end, match=match, type=type
+                )
+            else:
+                if end is None:
+                    request = make_request_string(
+                        event="memory.info.search", address=address, match=match, type=type
+                    )
+                else:
+                    request = make_request_string(
+                        event="memory.info.search", address=address, end=end, match=match, type=type
+                    )
+        return await self.send_request_receive_answer(request, "memory.info.search", const_error_event)
 
     async def memory_read_u8(self, address: int):  # unfinished
         request = make_request_string(event="memory.read_u8", address=address)
@@ -647,9 +720,67 @@ class PPSSPP_Debugger:
             request = make_request_string(event="cpu.startLogging")
         return await self.send_request_receive_answer(request, "cpu.startLogging", const_error_event)
 
-    async def cpu_flushLogs(self):
-        request = make_request_string(event="cpu.flushLogs")
-        return await self.send_request_receive_answer(request, "cpu.flushLogs", const_error_event)
+    async def cpu_flushLogs(self, filename: Optional[str] = None):
+        # request = make_request_string(event="cpu.flushLogs")
+        event = "cpu.flushLogs"
+        args = API_args(event)
+        if filename is not None:
+            args.add(filename=filename)
+
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
+
+    async def cpu_getLoggingSettings(self):
+        request = make_request_string(event="cpu.getLoggingSettings")
+        return await self.send_request_receive_answer(request, "cpu.getLoggingSettings", const_error_event)
+
+    async def cpu_getLoggingForbiddenRanges(self):
+        request = make_request_string(event="cpu.getLoggingForbiddenRanges")
+        return await self.send_request_receive_answer(request, "cpu.getLoggingForbiddenRanges", const_error_event)
+
+    async def cpu_loggerForbidRange(self, start: int, size: int):
+        request = make_request_string(event="cpu.loggerForbidRange", start=start, size=size)
+        return await self.send_request_receive_answer(request, "cpu.loggerForbidRange", const_error_event)
+
+    async def cpu_loggerAllowRange(self, start: int, size: int):
+        request = make_request_string(event="cpu.loggerAllowRange", start=start, size=size)
+        return await self.send_request_receive_answer(request, "cpu.loggerAllowRange", const_error_event)
+
+    async def cpu_loggerUpdateInfo(self, address: int, log_info: Optional[str] = None):
+        if log_info is not None:
+            request = make_request_string(event="cpu.loggerUpdateInfo", address=address, log_info=log_info)
+        else:
+            request = make_request_string(event="cpu.loggerUpdateInfo", address=address)
+        return await self.send_request_receive_answer(request, "cpu.loggerUpdateInfo", const_error_event)
+
+    async def cpu_getLoggerInfo(self):
+        request = make_request_string(event="cpu.getLoggerInfo")
+        return await self.send_request_receive_answer(request, "cpu.getLoggerInfo", const_error_event)
+
+    async def cpu_getLoggerInfoAt(self, address: int):
+        request = make_request_string(event="cpu.getLoggerInfoAt", address=address)
+        return await self.send_request_receive_answer(request, "cpu.getLoggerInfoAt", const_error_event)
+
+    async def cpu_updateLoggerSettings(self, mode=None, maxCount=None, flushWhenFull=None,
+                                       ignoreForbiddenWhenRecording=None, lastLinesCount=None):
+        if mode is None and maxCount is None and flushWhenFull is None and \
+                ignoreForbiddenWhenRecording is None and lastLinesCount is None:
+            raise AssertionError("At least one parameter must be not None")
+
+        event = "cpu.updateLoggerSettings"
+        args = API_args(event)
+        if mode is not None:
+            args.add(mode=mode)
+        if maxCount is not None:
+            args.add(maxCount=maxCount)
+        if flushWhenFull is not None:
+            args.add(flushWhenFull=flushWhenFull)
+        if ignoreForbiddenWhenRecording is not None:
+            args.add(ignoreForbiddenWhenRecording=ignoreForbiddenWhenRecording)
+        if lastLinesCount is not None:
+            args.add(lastLinesCount=lastLinesCount)
+        request = str(args)
+        return await self.send_request_receive_answer(request, event, const_error_event)
 
     # High-level functions
     async def memory_write_bytes(self, address: int, byte_str: bytes):
