@@ -116,7 +116,7 @@ class API_args:
     def __init__(self, event: str):
         self._args: dict = {"event": event}
 
-    def add(self, *, name: Optional[str] = None, value: Optional[Any] = None, **kwargs):
+    def add(self, name: Optional[str] = None, value: Optional[Any] = None, /, **kwargs):
         if (name is not None) and (value is not None):
             self._args[name] = value
         self._args.update(kwargs)
@@ -430,65 +430,86 @@ class PPSSPP_Debugger:
 
     # GPU section
 
-    async def gpu_buffer_screenshot(self):  # unfinished
-        event = "memory.base"
+    async def gpu_buffer_screenshot(self, type: str, alpha: Optional[bool] = None):  # unfinished
+        event = "gpu.buffer.screenshot"
         args = API_args(event)
+        args.add(type=type)
+        if alpha is not None:
+            args.add(alpha=alpha)
 
         request = str(args)
         return await self.send_request_receive_answer(request, event, const_error_event)
 
-    async def gpu_buffer_renderColor(self):  # unfinished
-        event = "memory.base"
+    async def gpu_buffer_renderColor(self, type: str, alpha: Optional[bool] = None):  # unfinished
+        event = "gpu.buffer.renderColor"
         args = API_args(event)
+        args.add(type=type)
+        if alpha is not None:
+            args.add(alpha=alpha)
 
         request = str(args)
         return await self.send_request_receive_answer(request, event, const_error_event)
 
-    async def gpu_buffer_renderDepth(self):  # unfinished
-        event = "memory.base"
+    async def gpu_buffer_renderDepth(self, type: str, alpha: Optional[bool] = None):  # unfinished
+        event = "gpu.buffer.renderDepth"
         args = API_args(event)
+        args.add(type=type)
+        if alpha is not None:
+            args.add(alpha=alpha)
 
         request = str(args)
         return await self.send_request_receive_answer(request, event, const_error_event)
 
-    async def gpu_buffer_renderStencil(self):  # unfinished
-        event = "memory.base"
+    async def gpu_buffer_renderStencil(self, type: str, alpha: Optional[bool] = None):  # unfinished
+        event = "gpu.buffer.renderStencil"
         args = API_args(event)
+        args.add(type=type)
+        if alpha is not None:
+            args.add(alpha=alpha)
 
         request = str(args)
         return await self.send_request_receive_answer(request, event, const_error_event)
 
-    async def gpu_buffer_texture(self):  # unfinished
-        event = "memory.base"
+    async def gpu_buffer_texture(self, type: str, alpha: Optional[bool] = None, level: int = 0):  # unfinished
+        event = "gpu.buffer.texture"
         args = API_args(event)
+        args.add(type=type, level=level)
+        if alpha is not None:
+            args.add(alpha=alpha)
 
         request = str(args)
         return await self.send_request_receive_answer(request, event, const_error_event)
 
-    async def gpu_buffer_clut(self):  # unfinished
-        event = "memory.base"
+    async def gpu_buffer_clut(self, type: str, alpha: Optional[bool] = None, stackWidth: Optional[int] = None):  # unfinished
+        event = "gpu.buffer.clut"
         args = API_args(event)
+        args.add(type=type)
+        if alpha is not None:
+            args.add(alpha=alpha)
+        if stackWidth is not None:
+            args.add(stackWidth=stackWidth)
 
         request = str(args)
         return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def gpu_record_dump(self):  # unfinished
-        event = "memory.base"
+        event = "gpu.record.dump"
         args = API_args(event)
 
         request = str(args)
         return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def gpu_stats_get(self):  # unfinished
-        event = "memory.base"
+        event = "gpu.stats.get"
         args = API_args(event)
 
         request = str(args)
         return await self.send_request_receive_answer(request, event, const_error_event)
 
-    async def gpu_stats_feed(self):  # unfinished
-        event = "memory.base"
+    async def gpu_stats_feed(self, enable: bool = True):  # unfinished
+        event = "gpu.stats.feed"
         args = API_args(event)
+        args.add(enable=enable)
 
         request = str(args)
         return await self.send_request_receive_answer(request, event, const_error_event)
@@ -527,16 +548,18 @@ class PPSSPP_Debugger:
         request = str(args)
         return await self.send_request_receive_answer(request, event, const_error_event)
 
-    async def hle_thread_wake(self):  # unfinished
-        event = "memory.base"
+    async def hle_thread_wake(self, thread: int):  # unfinished
+        event = "hle.thread.wake"
         args = API_args(event)
+        args.add(thread=thread)
 
         request = str(args)
         return await self.send_request_receive_answer(request, event, const_error_event)
 
-    async def hle_thread_stop(self):  # unfinished
-        event = "memory.base"
+    async def hle_thread_stop(self, thread: int):  # unfinished
+        event = "hle.thread.stop"
         args = API_args(event)
+        args.add(thread=thread)
 
         request = str(args)
         return await self.send_request_receive_answer(request, event, const_error_event)
@@ -774,50 +797,52 @@ class PPSSPP_Debugger:
     # Replay section
 
     async def replay_begin(self):  # unfinished
-        event = "memory.base"
+        event = "replay.begin"
         args = API_args(event)
 
         request = str(args)
         return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def replay_abort(self):  # unfinished
-        event = "memory.base"
+        event = "replay.abort"
         args = API_args(event)
 
         request = str(args)
         return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def replay_flush(self):  # unfinished
-        event = "memory.base"
+        event = "replay.flush"
         args = API_args(event)
 
         request = str(args)
         return await self.send_request_receive_answer(request, event, const_error_event)
 
-    async def replay_execute(self):  # unfinished
-        event = "memory.base"
+    async def replay_execute(self, version: int, base64: str):  # unfinished
+        event = "replay.execute"
         args = API_args(event)
+        args.add(version=version, base64=base64)
 
         request = str(args)
         return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def replay_status(self):  # unfinished
-        event = "memory.base"
+        event = "replay.status"
         args = API_args(event)
 
         request = str(args)
         return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def replay_time_get(self):  # unfinished
-        event = "memory.base"
+        event = "replay.time.get"
         args = API_args(event)
 
         request = str(args)
         return await self.send_request_receive_answer(request, event, const_error_event)
 
-    async def replay_time_set(self):  # unfinished
-        event = "memory.base"
+    async def replay_time_set(self, value: int):  # unfinished
+        event = "replay.time.set"
         args = API_args(event)
+        args.add(value=value)
 
         request = str(args)
         return await self.send_request_receive_answer(request, event, const_error_event)
@@ -856,15 +881,16 @@ class PPSSPP_Debugger:
 
         return await self.send_request_receive_answer(request, await_event, const_error_event)
 
-    async def cpu_runUntil(self):  # unfinished
-        event = "memory.base"
+    async def cpu_runUntil(self, address: int):  # unfinished
+        event = "cpu.runUntil"
         args = API_args(event)
+        args.add(address=address)
 
         request = str(args)
         return await self.send_request_receive_answer(request, event, const_error_event)
 
     async def cpu_nextHLE(self):  # unfinished
-        event = "memory.base"
+        event = "cpu.nextHLE"
         args = API_args(event)
 
         request = str(args)
