@@ -408,8 +408,9 @@ class PPSSPP_Debugger:
                                        write=True, change=False, logFormat=""):  # unfinished
         event = "memory.breakpoint.update"
         args = API_args(event)
-        request = make_request_string(address=address, size=size, enabled=enabled,
-                                      log=log, read=read, write=write, change=change, logFormat=logFormat)
+        args.add(address=address, size=size, enabled=enabled, log=log, read=read, write=write,
+                 change=change, logFormat=logFormat)
+
         request = str(args)
         return await self.send_request_receive_answer(request, event, const_error_event)
 
@@ -521,6 +522,7 @@ class PPSSPP_Debugger:
         # Doesn't work on v1.11.3, crashes v1.12.3
         event = "game.reset"
         args = API_args(event)
+        args.add("break", break_)
 
         request = str(args)
         return await self.send_request_receive_answer(request, event, const_error_event)
